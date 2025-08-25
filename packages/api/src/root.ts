@@ -12,6 +12,7 @@ import { usersRouter } from './routers/users';
 import { adminRouter } from './routers/admin';
 import { userRouter } from './routers/user';
 import { submissionRouter } from './routers/submissions';
+import { notificationsRouter } from './routers/notifications';
 
 export type * from './driver/types';
 
@@ -27,6 +28,7 @@ export const appRouter = createTRPCRouter({
   admin: adminRouter,
   profile: profileRouter,
   launches: launchesRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;
