@@ -47,18 +47,16 @@ export function EndorsementList({ userId }: EndorsementListProps) {
 
   if (!data?.endorsements.length) {
     return (
-      <Card className="rounded-none border-neutral-800 bg-neutral-900">
-        <CardContent className="p-8 text-center">
-          <p className="text-neutral-400">No endorsements yet</p>
-        </CardContent>
-      </Card>
+      <div className="p-6 text-center text-neutral-400">
+        <p className="text-neutral-400">No endorsements yet</p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
       {data.endorsements.map((endorsement) => (
-        <Card key={endorsement.id} className="rounded-none border-neutral-800 bg-neutral-900">
+        <Card key={endorsement.id} className="rounded-none border-neutral-800 bg-neutral-900/50">
           <CardContent className="px-6">
             <div className="flex gap-4">
               <Link href={`/profile/${endorsement.endorser.id}`}>

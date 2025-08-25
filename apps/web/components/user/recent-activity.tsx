@@ -140,7 +140,9 @@ export function RecentActivity({ userId }: { userId: string }) {
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm text-white">{activity.title}</p>
+                        <Link href={`/projects/${activity.projectId}`}>
+                          <p className="text-sm text-white">{activity.title}</p>
+                        </Link>
                         {activity.description && (
                           <p className="mt-1 line-clamp-2 text-sm text-neutral-400">
                             {activity.description}
