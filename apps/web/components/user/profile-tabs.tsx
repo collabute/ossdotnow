@@ -139,7 +139,7 @@ export function ProfileTabs({
         </TabsList>
         <TabsContent value="about" className="mt-2">
           {profileReadme ? (
-            <div className="rounded-none border border-neutral-800 bg-neutral-900/50 p-6">
+            <div className="rounded-none border border-neutral-800 bg-neutral-900/50 px-6">
               <MarkdownContent
                 content={profileReadme.content}
                 encoding={
@@ -265,7 +265,7 @@ export function ProfileTabs({
           </div>
 
           <div>
-            <div className="space-y-4 grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-4 space-y-4">
               {showUnsubmitted === 'true' ? (
                 filteredUnSubmitted.length > 0 ? (
                   filteredUnSubmitted.map((project, id) => (
