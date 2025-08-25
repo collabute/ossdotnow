@@ -13,11 +13,11 @@ import { Card, CardContent } from '@workspace/ui/components/card';
 import { Skeleton } from '@workspace/ui/components/skeleton';
 import UnsubmittedRepoCard from './unsubmitted-project-card';
 import React, { useRef, useEffect, useState } from 'react';
-import { Switch } from '@workspace/ui/components/switch';
 import { Button } from '@workspace/ui/components/button';
 import { ContributionGraph } from './contribution-graph';
 import { ProjectWithGithubData } from '@/types/project';
 import { Badge } from '@workspace/ui/components/badge';
+import { EndorsementList } from './endorsement-list';
 import { authClient } from '@workspace/auth/client';
 import Icons from '@workspace/ui/components/icons';
 import Link from '@workspace/ui/components/link';
@@ -123,7 +123,7 @@ export function ProfileTabs({
         <ContributionGraph username={profile.git.login} provider={profile.git.provider} />
       )}
       <Tabs defaultValue={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 rounded-none border-neutral-800 bg-neutral-900/50">
+        <TabsList className="grid w-full grid-cols-5 rounded-none border-neutral-800 bg-neutral-900/50">
           <TabsTrigger value="about" className="rounded-none">
             About
           </TabsTrigger>
@@ -135,6 +135,9 @@ export function ProfileTabs({
           </TabsTrigger>
           <TabsTrigger value="collections" className="rounded-none">
             Collections
+          </TabsTrigger>
+          <TabsTrigger value="endorsements" className="rounded-none">
+            Endorsements
           </TabsTrigger>
         </TabsList>
         <TabsContent value="about" className="mt-2">
@@ -265,7 +268,7 @@ export function ProfileTabs({
           </div>
 
           <div>
-            <div className="space-y-4 grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-4 space-y-4">
               {showUnsubmitted === 'true' ? (
                 filteredUnSubmitted.length > 0 ? (
                   filteredUnSubmitted.map((project, id) => (
@@ -306,6 +309,10 @@ export function ProfileTabs({
               <p>Project collections coming soon...</p>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="endorsements" className="mt-2">
+          <EndorsementList userId={profile?.id || ''} />
         </TabsContent>
       </Tabs>
     </>

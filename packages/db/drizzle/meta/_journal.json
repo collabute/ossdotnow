@@ -169,6 +169,13 @@
       "when": 1756063027028,
       "tag": "0023_real_wither",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1756043445972,
+      "tag": "0026_brainy_havok",
+      "breakpoints": true
     }
   ]
 }

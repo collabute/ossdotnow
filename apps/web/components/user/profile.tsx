@@ -8,6 +8,8 @@ import { Skeleton } from '@workspace/ui/components/skeleton';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { projectProviderEnum } from '@workspace/db/schema';
 import { Button } from '@workspace/ui/components/button';
+import { EndorsementDialog } from './endorsement-dialog';
+import { authClient } from '@workspace/auth/client';
 import Icons from '@workspace/ui/components/icons';
 import { RecentActivity } from './recent-activity';
 import { isValidProvider } from '@/lib/constants';
@@ -23,6 +25,8 @@ export default function ProfilePage({ id }: { id: string }) {
     defaultValue: 'about',
   });
   const [showShadow, setShowShadow] = useState(false);
+  const [session, setSession] = useState<any>(null);
+  const [_sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,6 +35,20 @@ export default function ProfilePage({ id }: { id: string }) {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    authClient
+      .getSession()
+      .then((sessionData) => {
+        setSession(sessionData);
+      })
+      .catch((error) => {
+        console.error('Session fetch failed:', error);
+      })
+      .finally(() => {
+        setSessionLoading(false);
+      });
   }, []);
 
   const { data: profile, isLoading: isProfileLoading } = useQuery(
@@ -243,16 +261,21 @@ export default function ProfilePage({ id }: { id: string }) {
                           <Share className="mr-2 h-4 w-4" />
                           Share
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 rounded-none border-neutral-800 bg-neutral-900/50 text-neutral-400 hover:border-neutral-700 hover:bg-neutral-800 hover:text-neutral-200"
-                          // TODO: Implement endorse functionality
-                          // Add endorse/profile recommendation feature
-                        >
-                          <Award className="mr-2 h-4 w-4" />
-                          Endorse
-                        </Button>
+                        {session?.data?.user?.id &&
+                        profile &&
+                        session.data.user.id !== profile.id ? (
+                          <EndorsementDialog userId={profile.id} userName={profile.name} />
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 rounded-none border-neutral-800 bg-neutral-900/50 text-neutral-400 hover:border-neutral-700 hover:bg-neutral-800 hover:text-neutral-200"
+                            disabled
+                          >
+                            <Award className="mr-2 h-4 w-4" />
+                            Endorse
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
