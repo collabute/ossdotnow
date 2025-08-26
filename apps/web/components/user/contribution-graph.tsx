@@ -27,7 +27,8 @@ export function ContributionGraph({
 
   const contributions: ContributionDay[] =
     data?.days?.map((day) => ({
-      date: new Date(day.date),
+      // Parse as local midnight to avoid UTC→local shifts
+      date: new Date(`${day.date}T00:00:00`),
       count: day.contributionCount,
       level: (() => {
         switch (day.contributionLevel) {
@@ -264,7 +265,9 @@ export function ContributionGraph({
                         )}
                         style={{ width: '10px' }}
                         title={
-                          day ? `${day.count} contributions on ${day.date.toDateString()}` : ''
+                          day
+                            ? `${day.count} contributions on ${day.date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}`
+                            : ''
                         }
                         role="gridcell"
                         aria-selected="false"
