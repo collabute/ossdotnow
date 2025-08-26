@@ -10,7 +10,7 @@ import {
 import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
 import { getActiveDriver, type Context } from '../driver/utils';
 import { TRPCError } from '@trpc/server';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 
 type ActivityItem = {
@@ -30,7 +30,10 @@ type ActivityItem = {
 };
 
 export const profileRouter = createTRPCRouter({
-  getProfile: publicProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
+  getProfile: publicProcedure.input(z.object({ 
+    id: z.string(),
+    provider: z.enum(['github', 'gitlab']).optional() 
+  })).query(async ({ ctx, input }) => {
     const targetId = input.id;
 
     const profileUser = await ctx.db.query.user.findFirst({
@@ -44,14 +47,21 @@ export const profileRouter = createTRPCRouter({
       });
     }
 
-    const userAccount = await ctx.db.query.account.findFirst({
-      where: eq(account.userId, targetId),
-    });
+    // If provider is specified, look for that specific account
+    // Otherwise, get the first available account (backward compatibility)
+    const userAccount = input.provider 
+      ? await ctx.db.query.account.findFirst({
+          where: and(eq(account.userId, targetId), eq(account.providerId, input.provider)),
+        })
+      : await ctx.db.query.account.findFirst({
+          where: eq(account.userId, targetId),
+        });
 
     if (!userAccount || !userAccount.providerId) {
+      const providerMessage = input.provider ? ` for ${input.provider}` : '';
       throw new TRPCError({
         code: 'NOT_FOUND',
-        message: 'User account or provider not found',
+        message: `User account or provider not found${providerMessage}`,
       });
     }
 
@@ -67,6 +77,20 @@ export const profileRouter = createTRPCRouter({
       provider: userAccount.providerId,
     };
   }),
+  getUserProviders: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const accounts = await ctx.db.query.account.findMany({
+        where: eq(account.userId, input.id),
+        columns: {
+          providerId: true,
+        },
+      });
+
+      return {
+        providers: accounts.map(acc => acc.providerId),
+      };
+    }),
   gitDetails: publicProcedure
     .input(
       z.object({
