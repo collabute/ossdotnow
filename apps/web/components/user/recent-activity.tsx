@@ -19,7 +19,14 @@ import Link from 'next/link';
 
 type Activity = {
   id: string;
-  type: 'project_created' | 'comment' | 'upvote' | 'project_launch' | 'project_claim';
+  type:
+    | 'project_created'
+    | 'comment'
+    | 'upvote'
+    | 'project_launch'
+    | 'project_claim'
+    | 'endorsement_given'
+    | 'endorsement_received';
   timestamp: Date;
   title: string;
   description: string | null;
@@ -83,6 +90,10 @@ export function RecentActivity({ userId }: { userId: string }) {
         ) : (
           <XCircle className="h-4 w-4 text-red-500" />
         );
+      case 'endorsement_given':
+        return <ThumbsUp className="h-4 w-4 text-yellow-500" />;
+      case 'endorsement_received':
+        return <ThumbsUp className="h-4 w-4 text-yellow-500" />;
       default:
         return <Calendar className="h-4 w-4 text-neutral-500" />;
     }
@@ -100,6 +111,9 @@ export function RecentActivity({ userId }: { userId: string }) {
         return 'text-purple-500';
       case 'project_claim':
         return 'text-emerald-500';
+      case 'endorsement_given':
+      case 'endorsement_received':
+        return 'text-yellow-500';
       default:
         return 'text-neutral-500';
     }
@@ -126,7 +140,9 @@ export function RecentActivity({ userId }: { userId: string }) {
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm text-white">{activity.title}</p>
+                        <Link href={`/projects/${activity.projectId}`}>
+                          <p className="text-sm text-white">{activity.title}</p>
+                        </Link>
                         {activity.description && (
                           <p className="mt-1 line-clamp-2 text-sm text-neutral-400">
                             {activity.description}

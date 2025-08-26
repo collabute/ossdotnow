@@ -6,16 +6,24 @@ import {
   projectLaunch,
   projectVote,
   user,
+  endorsement,
 } from '@workspace/db/schema';
-import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
 import { getActiveDriver, type Context } from '../driver/utils';
+import { createTRPCRouter, publicProcedure } from '../trpc';
+import { desc, eq, or } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 type ActivityItem = {
   id: string;
-  type: 'project_created' | 'comment' | 'upvote' | 'project_launch' | 'project_claim';
+  type:
+    | 'project_created'
+    | 'comment'
+    | 'upvote'
+    | 'project_launch'
+    | 'project_claim'
+    | 'endorsement_given'
+    | 'endorsement_received';
   timestamp: Date;
   title: string;
   description: string | null;
@@ -26,7 +34,10 @@ type ActivityItem = {
   tagline?: string;
   claimSuccess?: boolean;
   verificationMethod?: string;
-  data: any;
+  endorserName?: string;
+  endorsedUserName?: string;
+  endorsementType?: string;
+  data: unknown;
 };
 
 export const profileRouter = createTRPCRouter({
@@ -96,46 +107,58 @@ export const profileRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const { userId } = input;
 
-      const [userProjects, userComments, userVotes, userClaims] = await Promise.all([
-        ctx.db.query.project.findMany({
-          where: eq(project.ownerId, userId),
-          orderBy: [desc(project.createdAt)],
-          limit: 20,
-          with: {
-            owner: true,
-          },
-        }),
+      const [userProjects, userComments, userVotes, userClaims, userEndorsements] =
+        await Promise.all([
+          ctx.db.query.project.findMany({
+            where: eq(project.ownerId, userId),
+            orderBy: [desc(project.createdAt)],
+            limit: 20,
+            with: {
+              owner: true,
+            },
+          }),
 
-        ctx.db.query.projectComment.findMany({
-          where: eq(projectComment.userId, userId),
-          orderBy: [desc(projectComment.createdAt)],
-          limit: 20,
-          with: {
-            project: true,
-            user: true,
-          },
-        }),
+          ctx.db.query.projectComment.findMany({
+            where: eq(projectComment.userId, userId),
+            orderBy: [desc(projectComment.createdAt)],
+            limit: 20,
+            with: {
+              project: true,
+              user: true,
+            },
+          }),
 
-        ctx.db.query.projectVote.findMany({
-          where: eq(projectVote.userId, userId),
-          orderBy: [desc(projectVote.createdAt)],
-          limit: 20,
-          with: {
-            project: true,
-            user: true,
-          },
-        }),
+          ctx.db.query.projectVote.findMany({
+            where: eq(projectVote.userId, userId),
+            orderBy: [desc(projectVote.createdAt)],
+            limit: 20,
+            with: {
+              project: true,
+              user: true,
+            },
+          }),
 
-        ctx.db.query.projectClaim.findMany({
-          where: eq(projectClaim.userId, userId),
-          orderBy: [desc(projectClaim.createdAt)],
-          limit: 20,
-          with: {
-            project: true,
-            user: true,
-          },
-        }),
-      ]);
+          ctx.db.query.projectClaim.findMany({
+            where: eq(projectClaim.userId, userId),
+            orderBy: [desc(projectClaim.createdAt)],
+            limit: 20,
+            with: {
+              project: true,
+              user: true,
+            },
+          }),
+
+          ctx.db.query.endorsement.findMany({
+            where: or(eq(endorsement.endorserId, userId), eq(endorsement.endorsedUserId, userId)),
+            orderBy: [desc(endorsement.createdAt)],
+            limit: 20,
+            with: {
+              endorser: true,
+              endorsedUser: true,
+              project: true,
+            },
+          }),
+        ]);
 
       const projectsWithLaunches = await ctx.db.query.projectLaunch.findMany({
         where: (launch, { inArray }) =>
@@ -214,6 +237,27 @@ export const profileRouter = createTRPCRouter({
           tagline: l.tagline,
           data: l,
         })),
+        ...userEndorsements.map((e) => {
+          const isEndorser = e.endorserId === userId;
+          const projectInfo = e.project || (e.projectName ? { name: e.projectName, id: '' } : null);
+
+          return {
+            id: e.id,
+            type: isEndorser ? ('endorsement_given' as const) : ('endorsement_received' as const),
+            timestamp: e.createdAt,
+            title: isEndorser
+              ? `Endorsed ${e.endorsedUser.name || 'a user'}`
+              : `Received endorsement from ${e.endorser.name || 'a user'}`,
+            description: e.content.length > 100 ? e.content.substring(0, 100) + '...' : e.content,
+            projectName: projectInfo?.name || '',
+            projectId: projectInfo?.id || '',
+            projectLogoUrl: e.project?.logoUrl || null,
+            endorserName: e.endorser.name,
+            endorsedUserName: e.endorsedUser.name,
+            endorsementType: e.type,
+            data: e,
+          };
+        }),
       ];
 
       activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
