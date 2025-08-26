@@ -1,60 +1,7 @@
 import { categoryProjectStatuses, categoryProjectTypes } from '../../schema';
 import { eq, inArray } from 'drizzle-orm';
 import { project } from '../../schema';
-// @ts-ignore - Ignoring type issues for node-fetch in seed script
-import fetch from 'node-fetch';
 import { db } from '../..';
-
-async function fetchGitHubRepoId(repoPath: string): Promise<string | null> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${repoPath}`, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'OSSLaunch-Seeding',
-      },
-    });
-
-    if (response.ok) {
-      const data = (await response.json()) as any;
-      if (data && typeof data.id !== 'undefined') {
-        return data.id.toString();
-      }
-      console.error(`Missing ID in GitHub API response for ${repoPath}`);
-    } else {
-      console.error(`GitHub API error for ${repoPath}: ${response.status} ${response.statusText}`);
-    }
-    return null;
-  } catch (error) {
-    console.error(`Error fetching GitHub repo ID for ${repoPath}:`, error);
-    return null;
-  }
-}
-
-
-async function fetchGitLabRepoId(repoPath: string): Promise<string | null> {
-  try {
-    const encodedPath = encodeURIComponent(repoPath);
-    const response = await fetch(`https://gitlab.com/api/v4/projects/${encodedPath}`, {
-      headers: {
-        'User-Agent': 'OSSLaunch-Seeding',
-      },
-    });
-
-    if (response.ok) {
-      const data = (await response.json()) as any;
-      if (data && typeof data.id !== 'undefined') {
-        return data.id.toString();
-      }
-      console.error(`Missing ID in GitLab API response for ${repoPath}`);
-    } else {
-      console.error(`GitLab API error for ${repoPath}: ${response.status} ${response.statusText}`);
-    }
-    return null;
-  } catch (error) {
-    console.error(`Error fetching GitLab repo ID for ${repoPath}:`, error);
-    return null;
-  }
-}
 
 export const projectsData = {
   async run(database: typeof db) {
@@ -114,6 +61,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'facebook/react',
         gitHost: 'github' as const,
+        repoId: '10270250',
         name: 'React',
         description:
           'A declarative, efficient, and flexible JavaScript library for building user interfaces',
@@ -136,6 +84,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'vuejs/vue',
         gitHost: 'github' as const,
+        repoId: '11730342',
         name: 'Vue.js',
         description:
           'A progressive, incrementally-adoptable JavaScript framework for building UI on the web',
@@ -158,6 +107,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'angular/angular',
         gitHost: 'github' as const,
+        repoId: '24195339',
         name: 'Angular',
         description: "The modern web developer's platform",
         socialLinks: {
@@ -179,6 +129,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'nodejs/node',
         gitHost: 'github' as const,
+        repoId: '27193779',
         name: 'Node.js',
         description: "Node.js JavaScript runtime built on Chrome's V8 JavaScript engine",
         socialLinks: {
@@ -200,6 +151,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'microsoft/TypeScript',
         gitHost: 'github' as const,
+        repoId: '20929025',
         name: 'TypeScript',
         description:
           'TypeScript is a superset of JavaScript that compiles to clean JavaScript output',
@@ -222,6 +174,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'microsoft/vscode',
         gitHost: 'github' as const,
+        repoId: '41881900',
         name: 'Visual Studio Code',
         description: 'Visual Studio Code - Open Source ("Code - OSS")',
         socialLinks: {
@@ -243,6 +196,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'tensorflow/tensorflow',
         gitHost: 'github' as const,
+        repoId: '45717250',
         name: 'TensorFlow',
         description: 'An Open Source Machine Learning Framework for Everyone',
         socialLinks: {
@@ -264,6 +218,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'moby/moby',
         gitHost: 'github' as const,
+        repoId: '7691631',
         name: 'Docker (Moby)',
         description:
           'Moby Project - a collaborative project for the container ecosystem to assemble container-based systems',
@@ -286,6 +241,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'kubernetes/kubernetes',
         gitHost: 'github' as const,
+        repoId: '20580498',
         name: 'Kubernetes',
         description: 'Production-Grade Container Scheduling and Management',
         socialLinks: {
@@ -307,6 +263,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'rust-lang/rust',
         gitHost: 'github' as const,
+        repoId: '724712',
         name: 'Rust',
         description: 'Empowering everyone to build reliable and efficient software',
         socialLinks: {
@@ -328,6 +285,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'golang/go',
         gitHost: 'github' as const,
+        repoId: '23096959',
         name: 'Go',
         description: 'The Go programming language',
         socialLinks: {
@@ -349,6 +307,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'vercel/next.js',
         gitHost: 'github' as const,
+        repoId: '70107786',
         name: 'Next.js',
         description: 'The React Framework for the Web',
         socialLinks: {
@@ -370,6 +329,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'tailwindlabs/tailwindcss',
         gitHost: 'github' as const,
+        repoId: '106017343',
         name: 'Tailwind CSS',
         description: 'A utility-first CSS framework for rapid UI development',
         socialLinks: {
@@ -391,6 +351,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'django/django',
         gitHost: 'github' as const,
+        repoId: '4164482',
         name: 'Django',
         description: 'The Web framework for perfectionists with deadlines',
         socialLinks: {
@@ -412,6 +373,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'git/git',
         gitHost: 'github' as const,
+        repoId: '36502',
         name: 'Git',
         description: 'Git Source Code Mirror - This is a publish-only repository',
         socialLinks: {
@@ -432,6 +394,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'postgres/postgres',
         gitHost: 'github' as const,
+        repoId: '927442',
         name: 'PostgreSQL',
         description: 'Mirror of the official PostgreSQL GIT repository',
         socialLinks: {
@@ -452,6 +415,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'redis/redis',
         gitHost: 'github' as const,
+        repoId: '156018',
         name: 'Redis',
         description: 'Redis is an in-memory database that persists on disk',
         socialLinks: {
@@ -473,6 +437,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'webpack/webpack',
         gitHost: 'github' as const,
+        repoId: '3678731',
         name: 'webpack',
         description: 'A bundler for javascript and friends',
         socialLinks: {
@@ -494,6 +459,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'facebook/jest',
         gitHost: 'github' as const,
+        repoId: '15062869',
         name: 'Jest',
         description: 'Delightful JavaScript Testing',
         socialLinks: {
@@ -515,6 +481,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'vitejs/vite',
         gitHost: 'github' as const,
+        repoId: '257485422',
         name: 'Vite',
         description: 'Next Generation Frontend Tooling',
         socialLinks: {
@@ -536,6 +503,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'strapi/strapi',
         gitHost: 'github' as const,
+        repoId: '43441403',
         name: 'Strapi',
         description: 'The leading open-source headless CMS',
         socialLinks: {
@@ -558,6 +526,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'WordPress/WordPress',
         gitHost: 'github' as const,
+        repoId: '2889328',
         name: 'WordPress',
         description:
           'WordPress, Git-ified. This repository is just a mirror of the WordPress subversion repository',
@@ -580,6 +549,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'obsidianmd/obsidian-releases',
         gitHost: 'github' as const,
+        repoId: '262342594',
         name: 'Obsidian',
         description: 'Community plugins list, theme list, and releases of Obsidian',
         socialLinks: {
@@ -602,6 +572,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'grafana/grafana',
         gitHost: 'github' as const,
+        repoId: '15111821',
         name: 'Grafana',
         description: 'The open and composable observability and data visualization platform',
         socialLinks: {
@@ -623,6 +594,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'prometheus/prometheus',
         gitHost: 'github' as const,
+        repoId: '6838921',
         name: 'Prometheus',
         description: 'The Prometheus monitoring system and time series database',
         socialLinks: {
@@ -644,6 +616,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'mastodon/mastodon',
         gitHost: 'github' as const,
+        repoId: '52281283',
         name: 'Mastodon',
         description: 'Your self-hosted, globally interconnected microblogging community',
         socialLinks: {
@@ -665,6 +638,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'discourse/discourse',
         gitHost: 'github' as const,
+        repoId: '7569578',
         name: 'Discourse',
         description: 'A platform for community discussion. Free, open, simple',
         socialLinks: {
@@ -686,6 +660,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'gitlabhq/gitlabhq',
         gitHost: 'github' as const,
+        repoId: 'gitlabhq/gitlabhq',
         name: 'GitLab',
         description: 'GitLab CE Mirror - GitLab Community Edition',
         socialLinks: {
@@ -707,6 +682,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'Homebrew/brew',
         gitHost: 'github' as const,
+        repoId: 'Homebrew/brew',
         name: 'Homebrew',
         description: 'The missing package manager for macOS (or Linux)',
         socialLinks: {
@@ -728,6 +704,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'neovim/neovim',
         gitHost: 'github' as const,
+        repoId: 'neovim/neovim',
         name: 'Neovim',
         description: 'Vim-fork focused on extensibility and usability',
         socialLinks: {
@@ -749,6 +726,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'godotengine/godot',
         gitHost: 'github' as const,
+        repoId: 'godotengine/godot',
         name: 'Godot Engine',
         description: 'Godot Engine - Multi-platform 2D and 3D game engine',
         socialLinks: {
@@ -771,6 +749,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'inkscape/inkscape',
         gitHost: 'gitlab' as const,
+        repoId: '3472737',
         name: 'Inkscape',
         description: 'Professional vector graphics editor for Windows, macOS & Linux',
         socialLinks: {
@@ -792,6 +771,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'CalcProgrammer1/OpenRGB',
         gitHost: 'gitlab' as const,
+        repoId: '10582521',
         name: 'OpenRGB',
         description: 'Cross-platform RGB lighting control that works vendor-independently',
         socialLinks: {
@@ -812,6 +792,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'gitlab-org/gitlab-runner',
         gitHost: 'gitlab' as const,
+        repoId: '250833',
         name: 'GitLab Runner',
         description: 'Lightweight agent that executes GitLab CI/CD jobs and reports results',
         socialLinks: {
@@ -832,6 +813,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'veloren/veloren',
         gitHost: 'gitlab' as const,
+        repoId: '10174980',
         name: 'Veloren',
         description: 'Voxel-based open-world action RPG written in Rust',
         socialLinks: {
@@ -853,6 +835,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'AuroraOSS/AuroraStore',
         gitHost: 'gitlab' as const,
+        repoId: '6922885',
         name: 'Aurora Store',
         description: 'Unofficial, privacy-respecting Google Play client for Android',
         socialLinks: {
@@ -873,6 +856,7 @@ export const projectsData = {
         logoUrl: null,
         gitRepoUrl: 'graphviz/graphviz',
         gitHost: 'gitlab' as const,
+        repoId: '4207231',
         name: 'Graphviz',
         description: 'Open-source graph-visualization software',
         socialLinks: {
@@ -902,35 +886,7 @@ export const projectsData = {
     const newProjects = projectsToInsert.filter((p) => !existingGitRepoUrls.has(p.gitRepoUrl));
 
     if (newProjects.length > 0) {
-      const projectsWithRepoId = [];
-
-      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-      for (const p of newProjects) {
-        let repoId = null;
-
-        if (p.gitHost === 'github') {
-          repoId = await fetchGitHubRepoId(p.gitRepoUrl);
-          await sleep(1000);
-        } else if (p.gitHost === 'gitlab') {
-          repoId = await fetchGitLabRepoId(p.gitRepoUrl);
-          await sleep(1000);
-        }
-
-        if (!repoId) {
-          repoId = `${p.gitRepoUrl}`;
-          console.log(`⚠️  Couldn't fetch repository ID for ${p.gitRepoUrl}, using fallback`);
-        } else {
-          console.log(`✓ Got repository ID ${repoId} for ${p.gitRepoUrl}`);
-        }
-
-        projectsWithRepoId.push({
-          ...p,
-          repoId,
-        });
-      }
-
-      await database.insert(project).values(projectsWithRepoId);
+      await database.insert(project).values(newProjects);
       console.log(`✅ Seeded projects with ${newProjects.length} new records`);
       if (existingGitRepoUrls.size > 0) {
         console.log(`⏭️  Skipped ${existingGitRepoUrls.size} existing projects`);
