@@ -18,7 +18,7 @@ export function ContributionGraph({
   provider: 'github' | 'gitlab';
 }) {
   const trpc = useTRPC();
-  const { data, isLoading } = useQuery(
+  const { data, isLoading, error } = useQuery(
     trpc.profile.getUserContributions.queryOptions({
       username,
       provider,
@@ -26,8 +26,9 @@ export function ContributionGraph({
   );
 
   const contributions: ContributionDay[] =
-    data?.days.map((day) => ({
-      date: new Date(day.date),
+    data?.days?.map((day) => ({
+      // Parse as local midnight to avoid UTC→local shifts
+      date: new Date(`${day.date}T00:00:00`),
       count: day.contributionCount,
       level: (() => {
         switch (day.contributionLevel) {
@@ -51,28 +52,28 @@ export function ContributionGraph({
     const grid: (ContributionDay | null)[][] = [];
     if (contributions.length === 0) return grid;
 
+    // Initialize 7 rows for days of week
+    for (let i = 0; i < 7; i++) {
+      grid.push([]);
+    }
+
     const firstDay = contributions[0];
     if (!firstDay) return grid;
 
     const firstDayOfWeek = firstDay.date.getDay();
 
-    for (let i = 0; i < 7; i++) {
-      grid.push([]);
-    }
-
+    // Add null padding at the beginning for the first week
     for (let i = 0; i < firstDayOfWeek; i++) {
-      if (grid[i]) {
-        grid[i]?.push(null);
-      }
+      grid[i]?.push(null);
     }
 
+    // Add all contributions to the grid
     contributions.forEach((day) => {
       const dayOfWeek = day.date.getDay();
-      if (grid[dayOfWeek]) {
-        grid[dayOfWeek].push(day);
-      }
+      grid[dayOfWeek]?.push(day);
     });
 
+    // Ensure all rows have the same length
     const maxWeeks = Math.max(...grid.map((row) => row.length));
     grid.forEach((row) => {
       while (row.length < maxWeeks) {
@@ -104,11 +105,15 @@ export function ContributionGraph({
 
   const getMonthColumns = () => {
     const monthCols: { month: string; colspan: number; index: number }[] = [];
+    if (weeks === 0) return monthCols;
+
     let currentMonth = -1;
     let startWeek = 0;
 
     for (let week = 0; week < weeks; week++) {
       let monthForWeek = -1;
+
+      // Find the first valid contribution in this week
       for (let day = 0; day < 7; day++) {
         const contribution = grid[day]?.[week];
         if (contribution) {
@@ -118,24 +123,34 @@ export function ContributionGraph({
       }
 
       if (monthForWeek !== -1 && monthForWeek !== currentMonth) {
+        // Close the previous month if it has enough weeks to display
         if (currentMonth !== -1) {
-          monthCols.push({
-            month: months[currentMonth] || '',
-            colspan: week - startWeek,
-            index: monthCols.length,
-          });
+          const colspan = week - startWeek;
+          if (colspan >= 2) {
+            // Only show months with at least 2 weeks
+            monthCols.push({
+              month: months[currentMonth] || '',
+              colspan: colspan,
+              index: monthCols.length,
+            });
+          }
         }
         currentMonth = monthForWeek;
         startWeek = week;
       }
     }
 
+    // Close the last month if it has enough weeks
     if (currentMonth !== -1) {
-      monthCols.push({
-        month: months[currentMonth] || '',
-        colspan: weeks - startWeek,
-        index: monthCols.length,
-      });
+      const colspan = weeks - startWeek;
+      if (colspan >= 2) {
+        // Only show months with at least 2 weeks
+        monthCols.push({
+          month: months[currentMonth] || '',
+          colspan: colspan,
+          index: monthCols.length,
+        });
+      }
     }
 
     return monthCols;
@@ -155,6 +170,33 @@ export function ContributionGraph({
         <CardContent className="p-4">
           <div className="flex items-center justify-center py-8">
             <div className="text-neutral-400">Loading contribution graph...</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="rounded-none border-neutral-800 bg-neutral-900/50 p-0">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-center py-8">
+            <div className="text-red-400">Failed to load contribution data</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (contributions.length === 0) {
+    return (
+      <Card className="rounded-none border-neutral-800 bg-neutral-900/50 p-0">
+        <CardContent className="p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-sm font-medium text-neutral-300">Contribution Activity</div>
+          </div>
+          <div className="flex items-center justify-center py-8">
+            <div className="text-neutral-400">No contribution data available</div>
           </div>
         </CardContent>
       </Card>
@@ -187,12 +229,12 @@ export function ContributionGraph({
                 </td>
                 {getMonthColumns().map((col) => (
                   <td
-                    key={col.index}
+                    key={`month-${col.index}`}
                     className="relative text-xs text-neutral-400"
                     colSpan={col.colspan}
                   >
                     <span className="sr-only">{col.month}</span>
-                    <span aria-hidden="true" className="absolute top-0 left-0">
+                    <span aria-hidden="true" style={{ position: 'absolute', top: 0, left: '3px' }}>
                       {col.month}
                     </span>
                   </td>
@@ -201,7 +243,7 @@ export function ContributionGraph({
             </thead>
             <tbody>
               {weekDays.map((dayName, dayIndex) => (
-                <tr key={dayIndex} style={{ height: '10px' }}>
+                <tr key={`day-${dayIndex}`} style={{ height: '10px' }}>
                   <td
                     className="relative pr-1 text-right text-xs text-neutral-400"
                     style={{ width: '28px' }}
@@ -218,14 +260,16 @@ export function ContributionGraph({
                     const day = grid[dayIndex]?.[weekIndex];
                     return (
                       <td
-                        key={weekIndex}
+                        key={`cell-${dayIndex}-${weekIndex}`}
                         className={cn(
                           'h-[10px] w-[10px] rounded-xs',
                           day ? levelColors[day.level] : '',
                         )}
                         style={{ width: '10px' }}
                         title={
-                          day ? `${day.count} contributions on ${day.date.toDateString()}` : ''
+                          day
+                            ? `${day.count} contributions on ${day.date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}`
+                            : ''
                         }
                         role="gridcell"
                         aria-selected="false"
@@ -239,7 +283,7 @@ export function ContributionGraph({
           <div className="mt-2 flex items-center justify-end gap-1 text-xs text-neutral-400">
             <span>Less</span>
             {levelColors.map((color, i) => (
-              <div key={i} className={cn('h-[10px] w-[10px]', color)} />
+              <div key={`legend-${i}`} className={cn('h-[10px] w-[10px]', color)} />
             ))}
             <span>More</span>
           </div>
