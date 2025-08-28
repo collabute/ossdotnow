@@ -126,7 +126,8 @@ export function ContributionGraph({
         // Close the previous month if it has enough weeks to display
         if (currentMonth !== -1) {
           const colspan = week - startWeek;
-          if (colspan >= 2) { // Only show months with at least 2 weeks
+          if (colspan >= 2) {
+            // Only show months with at least 2 weeks
             monthCols.push({
               month: months[currentMonth] || '',
               colspan: colspan,
@@ -142,7 +143,8 @@ export function ContributionGraph({
     // Close the last month if it has enough weeks
     if (currentMonth !== -1) {
       const colspan = weeks - startWeek;
-      if (colspan >= 2) { // Only show months with at least 2 weeks
+      if (colspan >= 2) {
+        // Only show months with at least 2 weeks
         monthCols.push({
           month: months[currentMonth] || '',
           colspan: colspan,
@@ -287,6 +289,6 @@ export function ContributionGraph({
           </div>
         </div>
       </CardContent>
-      </Card>
-    );
+    </Card>
+  );
 }
