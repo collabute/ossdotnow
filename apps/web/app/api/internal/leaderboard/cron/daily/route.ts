@@ -1,60 +1,57 @@
-// apps/web/app/api/internal/leaderboard/cron/daily/route.ts
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+// routes/api/cron/daily/route.ts — rollup snapshot refresh (no per-day backfill)
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { NextRequest } from "next/server";
-import { z } from "zod/v4";
-import { env } from "@workspace/env/server";
-import { isCronAuthorized } from "@workspace/env/verify-cron";
+import { isCronAuthorized } from '@workspace/env/verify-cron';
+import { env } from '@workspace/env/server';
+import { NextRequest } from 'next/server';
+import { z } from 'zod/v4';
 
-import { db } from "@workspace/db";
-// NOTE: adjust these imports to match your barrels if needed:
-import { refreshUserDayRange } from "@workspace/api/aggregator";
-import { syncUserLeaderboards } from "@workspace/api/leaderboard/redis";
-import { redis } from "@workspace/api/redis";
+import { syncUserLeaderboards } from '@workspace/api/leaderboard/redis';
+import { refreshUserRollups } from '@workspace/api/aggregator';
+import { redis } from '@workspace/api/redis';
+import { db } from '@workspace/db';
 
-const USER_SET = "lb:users";
+const USER_SET = 'lb:users';
 const META = (id: string) => `lb:user:${id}`;
 
 const Query = z.object({
   limit: z.coerce.number().int().min(1).max(5000).default(1000),
   concurrency: z.coerce.number().int().min(1).max(8).default(4),
-  dry: z
-    .union([z.literal("1"), z.literal("true"), z.literal("0"), z.literal("false")])
-    .optional(),
+  dry: z.union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false')]).optional(),
 });
 
-function startOfUtcDay(d = new Date()) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+function ymd(d = new Date()) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
 
 export async function GET(req: NextRequest) {
-  // Auth: CRON_SECRET or Vercel Cron header
   const ok =
-    isCronAuthorized(req.headers.get("authorization")) ||
-    !!req.headers.get("x-vercel-cron");
-  if (!ok) return new Response("Unauthorized", { status: 401 });
+    isCronAuthorized(req.headers.get('authorization')) || !!req.headers.get('x-vercel-cron');
+  if (!ok) return new Response('Unauthorized', { status: 401 });
 
   const parsed = Query.safeParse(Object.fromEntries(req.nextUrl.searchParams));
   if (!parsed.success) {
     return new Response(`Bad Request: ${parsed.error.message}`, { status: 400 });
   }
   const { limit, concurrency, dry } = parsed.data;
-  const isDry = dry === "1" || dry === "true";
+  const isDry = dry === '1' || dry === 'true';
 
-  const today = startOfUtcDay(new Date());
-  const yesterday = new Date(today); yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const snapshotDate = ymd(new Date());
 
   try {
-    // Quick Redis sanity check
+    // Sanity check Redis
     await redis.ping();
 
     // Enumerate users to process
     const allIdsRaw = await redis.smembers(USER_SET);
     const userIds = (Array.isArray(allIdsRaw) ? allIdsRaw : []).map(String).slice(0, limit);
 
-    // Early exit if none
     if (userIds.length === 0) {
       return Response.json({
         ok: true,
@@ -62,72 +59,97 @@ export async function GET(req: NextRequest) {
         processed: 0,
         skipped: 0,
         errors: [],
-        window: { from: yesterday.toISOString().slice(0, 10), to: today.toISOString().slice(0, 10) },
-        note: `No user IDs in Redis set "${USER_SET}". Run a backfill/refresh to seed it.`,
+        snapshotDate,
+        note: `No user IDs in Redis set "${USER_SET}". Seed it via backfill.`,
       });
     }
 
-    // Read provider handles from meta
+    // Fetch provider metadata (githubLogin / gitlabUsername) in a pipeline
     const pipe = redis.pipeline();
     for (const id of userIds) pipe.hgetall(META(id));
-    const metaRows = await pipe.exec();
+    const rawResults = await pipe.exec();
 
-    let processed = 0;
-    let skipped = 0;
-    const errors: Array<{ userId: string; error: string }> = [];
+    const metaRows = rawResults.map((r) => {
+      const val = Array.isArray(r) ? r[1] : r;
+      return val && typeof val === 'object' ? (val as Record<string, unknown>) : {};
+    });
+
+    const asTrimmedString = (v: unknown): string | undefined => {
+      if (typeof v === 'string') return v.trim();
+      if (v == null) return undefined;
+      if (typeof v === 'number' || typeof v === 'boolean') return String(v).trim();
+      if (Array.isArray(v)) return v.length ? String(v[0]).trim() : undefined;
+      return undefined;
+    };
 
     if (isDry) {
-      // Return a preview of what would run
       const preview = userIds.map((id, i) => {
-        const m = (metaRows[i] || {}) as Record<string, string | undefined>;
-        return { userId: id, githubLogin: m.githubLogin || null, gitlabUsername: m.gitlabUsername || null };
+        const m = metaRows[i] || {};
+        const githubLogin = asTrimmedString(m.githubLogin) ?? null;
+        const gitlabUsername = asTrimmedString(m.gitlabUsername) ?? null;
+        return { userId: id, githubLogin, gitlabUsername };
       });
       return Response.json({
         ok: true,
         dryRun: true,
         scanned: userIds.length,
         sample: preview.slice(0, 10),
-        window: { from: yesterday.toISOString().slice(0, 10), to: today.toISOString().slice(0, 10) },
+        snapshotDate,
       });
     }
 
     // Bounded parallelism
     const workers = Math.max(1, Math.min(concurrency, 8));
     let idx = 0;
+    let processed = 0;
+    let skipped = 0;
+    const errors: Array<{ userId: string; error: string }> = [];
+
     const tasks = Array.from({ length: workers }, async () => {
       while (true) {
         const i = idx++;
         if (i >= userIds.length) break;
 
         const userId = userIds[i]!;
-        const m = (metaRows[i] || {}) as Record<string, string | undefined>;
-        const githubLogin = m.githubLogin?.trim() || undefined;
-        const gitlabUsername = m.gitlabUsername?.trim() || undefined;
+        const m = metaRows[i] || {};
+        const githubLogin = asTrimmedString(m.githubLogin);
+        const gitlabUsername = asTrimmedString(m.gitlabUsername);
 
         if (!githubLogin && !gitlabUsername) {
           skipped++;
           continue;
         }
 
+        // Token checks per provider
+        if (githubLogin && !env.GITHUB_TOKEN) {
+          errors.push({ userId, error: 'Missing GITHUB_TOKEN' });
+          skipped++;
+          continue;
+        }
+        if (gitlabUsername && !env.GITLAB_TOKEN) {
+          errors.push({ userId, error: 'Missing GITLAB_TOKEN' });
+          skipped++;
+          continue;
+        }
+
         try {
-          await refreshUserDayRange(
+          // One-shot snapshot for last_30d + last_365d
+          await refreshUserRollups(
             { db },
             {
               userId,
               githubLogin,
               gitlabUsername,
-              fromDayUtc: yesterday,
-              toDayUtc: today,
-              githubToken: env.GITHUB_TOKEN,            // may be undefined ⇒ GH skipped
-              gitlabToken: env.GITLAB_TOKEN,            // optional
-              gitlabBaseUrl: env.GITLAB_ISSUER || "https://gitlab.com",
-              concurrency: workers,
+              githubToken: env.GITHUB_TOKEN,
+              gitlabToken: env.GITLAB_TOKEN,
+              gitlabBaseUrl: env.GITLAB_ISSUER || 'https://gitlab.com',
             },
           );
 
+          // Push to Redis leaderboards from contribRollups
           await syncUserLeaderboards(db, userId);
           processed++;
-        } catch (err: unknown) {
+        } catch (err) {
           errors.push({ userId, error: String(err instanceof Error ? err.message : err) });
         }
       }
@@ -141,15 +163,14 @@ export async function GET(req: NextRequest) {
       processed,
       skipped,
       errors,
-      window: { from: yesterday.toISOString().slice(0, 10), to: today.toISOString().slice(0, 10) },
+      snapshotDate,
     });
   } catch (err: unknown) {
-    // Surface the actual error during development
     const msg = String(err instanceof Error ? `${err.name}: ${err.message}` : err);
-    if (env.VERCEL_ENV !== "production") {
-      console.error("[cron/daily] fatal:", err);
+    if (env.VERCEL_ENV !== 'production') {
+      console.error('[cron/daily-rollups] fatal:', err);
       return new Response(`Internal Error: ${msg}`, { status: 500 });
     }
-    return new Response("Internal Error", { status: 500 });
+    return new Response('Internal Error', { status: 500 });
   }
 }

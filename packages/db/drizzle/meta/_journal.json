@@ -162,6 +162,13 @@
       "when": 1754906352408,
       "tag": "0022_faulty_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1756464780722,
+      "tag": "0023_bent_strong_guy",
+      "breakpoints": true
     }
   ]
 }

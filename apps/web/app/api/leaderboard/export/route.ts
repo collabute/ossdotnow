@@ -3,17 +3,24 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { getLeaderboardPage, type ProviderSel, type WindowKey } from '@workspace/api/read'; // or '@workspace/api/leaderboard/read'
-import { getUserMetas } from '@workspace/api/use-meta'; // or '@workspace/api/leaderboard/userMeta'
-import { contribTotals } from '@workspace/db/schema';
 import { NextRequest } from 'next/server';
-import { inArray } from 'drizzle-orm';
-import { db } from '@workspace/db';
 import { z } from 'zod/v4';
+import { db } from '@workspace/db';
+
+// NEW read helper that uses contribRollups internally
+import { getLeaderboardPage } from '@workspace/api/read'; // your refactored reader
+
+// User meta gives us githubLogin / gitlabUsername to tag provider in CSV
+import { getUserMetas } from '@workspace/api/use-meta';
+
+// If your contrib_period enum includes 'all_time', flip this to true
+const HAS_ALL_TIME = false as const;
 
 const Query = z.object({
+  // provider is no longer used, but keep for backward-compat (ignored)
   provider: z.enum(['combined', 'github', 'gitlab']).default('combined'),
-  window: z.enum(['all', '30d', '365d']).default('30d'),
+  window: z.enum(HAS_ALL_TIME ? (['all', '30d', '365d'] as const) : (['30d', '365d'] as const))
+    .default('30d'),
   limit: z.coerce.number().int().min(1).max(2000).default(500),
   cursor: z.coerce.number().int().min(0).default(0),
 });
@@ -23,7 +30,12 @@ export async function GET(req: NextRequest) {
   if (!parsed.success) {
     return new Response(`Bad Request: ${parsed.error.message}`, { status: 400 });
   }
-  const { provider, window, limit, cursor } = parsed.data;
+  const { window, limit, cursor } = parsed.data;
+
+  // Guard: 'all' not supported unless you added all_time snapshots
+  if (window === 'all' && !HAS_ALL_TIME) {
+    return new Response(`Bad Request: 'all' window not supported by current schema`, { status: 400 });
+  }
 
   // Page through leaderboard to collect up to `limit` rows
   let entries: Array<{ userId: string; score: number }> = [];
@@ -31,9 +43,8 @@ export async function GET(req: NextRequest) {
 
   while (entries.length < limit) {
     const page = await getLeaderboardPage(db, {
-      provider: provider as ProviderSel,
-      window: window as WindowKey,
-      limit: Math.min(200, limit - entries.length), // page chunk
+      window: window === 'all' ? ('365d' as '30d' | '365d') : window, // 'all' would be supported only if HAS_ALL_TIME=true in reader too
+      limit: Math.min(200, limit - entries.length),
       cursor: next,
     });
     entries.push(...page.entries);
@@ -42,49 +53,11 @@ export async function GET(req: NextRequest) {
   }
   entries = entries.slice(0, limit);
 
-  // Per-provider breakdown for this window
   const userIds = entries.map((e) => e.userId);
-  const col =
-    window === 'all'
-      ? contribTotals.allTime
-      : window === '30d'
-        ? contribTotals.last30d
-        : contribTotals.last365d;
-
-  const rows = userIds.length
-    ? await db
-        .select({
-          userId: contribTotals.userId,
-          provider: contribTotals.provider, // 'github' | 'gitlab'
-          score: col,
-        })
-        .from(contribTotals)
-        .where(inArray(contribTotals.userId, userIds))
-    : [];
-
-  // Ensure we always have an object for each userId before assignment
-  const byUser: Record<string, { github: number; gitlab: number; total: number }> =
-    Object.create(null);
-  for (const id of userIds) byUser[id] = { github: 0, gitlab: 0, total: 0 };
-
-  for (const r of rows) {
-    const s = Number(r.score ?? 0);
-    const u = (byUser[r.userId] ??= { github: 0, gitlab: 0, total: 0 });
-    if (r.provider === 'github') u.github = s;
-    else if (r.provider === 'gitlab') u.gitlab = s;
-  }
-  for (const id of userIds) {
-    const u = byUser[id];
-    if (u) {
-      u.total = u.github + u.gitlab;
-    }
-  }
-
-  // Profiles (username/avatar; avatar not used in CSV)
   const metas = await getUserMetas(userIds);
   const metaMap = new Map(metas.map((m) => [m.userId, m]));
 
-  // Build CSV
+  // Build CSV; since each user has one provider, put score into the correct column
   const header = [
     'rank',
     'userId',
@@ -95,22 +68,28 @@ export async function GET(req: NextRequest) {
     'github',
     'gitlab',
   ];
-
   const lines = [header.join(',')];
 
   entries.forEach((e, idx) => {
     const rank = cursor + idx + 1;
     const m = metaMap.get(e.userId);
-    const agg = byUser[e.userId] || { github: 0, gitlab: 0, total: e.score };
+
+    const hasGithub = !!(m?.githubLogin && String(m.githubLogin).trim());
+    const hasGitlab = !!(m?.gitlabUsername && String(m.gitlabUsername).trim());
+
+    // allocate score to provider column based on meta
+    const githubScore = hasGithub ? e.score : 0;
+    const gitlabScore = hasGitlab ? e.score : 0;
+
     const row = [
       rank,
       e.userId,
       m?.username ?? '',
       m?.githubLogin ?? '',
       m?.gitlabUsername ?? '',
-      agg.total,
-      agg.github,
-      agg.gitlab,
+      e.score,
+      githubScore,
+      gitlabScore,
     ]
       .map((v) => (typeof v === 'string' ? `"${v.replace(/"/g, '""')}"` : String(v)))
       .join(',');
@@ -119,7 +98,7 @@ export async function GET(req: NextRequest) {
   });
 
   const csv = lines.join('\n');
-  const filename = `leaderboard_${provider}_${window}_${new Date().toISOString().slice(0, 10)}.csv`;
+  const filename = `leaderboard_combined_${window}_${new Date().toISOString().slice(0, 10)}.csv`;
 
   return new Response(csv, {
     status: 200,

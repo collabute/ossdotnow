@@ -1,3 +1,5 @@
+// routes/api/backfill-user/route.ts (updated for rollup snapshots)
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -8,22 +10,12 @@ import { isCronAuthorized } from '@workspace/env/verify-cron';
 import { env } from '@workspace/env/server';
 
 import { backfillLockKey, withLock, acquireLock, releaseLock } from '@workspace/api/locks';
-import { refreshUserDayRange } from '@workspace/api/aggregator';
+import { syncUserLeaderboards } from '@workspace/api/leaderboard/redis'; // <- refactored to use contribRollups
 import { setUserMetaFromProviders } from '@workspace/api/use-meta';
-import { syncUserLeaderboards } from '@workspace/api/leaderboard/redis';
 import { db } from '@workspace/db';
+import { refreshUserRollups } from '@workspace/api/aggregator';
 
-function startOfUtcDay(d = new Date()) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
-}
-
-function addDaysUTC(d: Date, days: number) {
-  const x = new Date(d);
-  x.setUTCDate(x.getUTCDate() + days);
-  return x;
-}
-
-function ymd(d: Date) {
+function ymd(d = new Date()) {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   const dd = String(d.getUTCDate()).padStart(2, '0');
@@ -32,9 +24,10 @@ function ymd(d: Date) {
 
 const Body = z
   .object({
-    userId: z.string().min(1),
-    githubLogin: z.string().min(1).optional(),
-    gitlabUsername: z.string().min(1).optional(),
+    userId: z.string().min(1).transform((s) => s.trim()),
+    githubLogin: z.string().min(1).transform((s) => s.trim()).optional(),
+    gitlabUsername: z.string().min(1).transform((s) => s.trim()).optional(),
+
     days: z.number().int().min(1).max(365).optional(),
     concurrency: z.number().int().min(1).max(8).optional(),
   })
@@ -48,12 +41,10 @@ export async function POST(req: NextRequest) {
 
   const json = await req.json().catch(() => ({}));
   const parsed = Body.safeParse(json);
-  if (!parsed.success) return new Response(`Bad Request: ${parsed.error.message}`, { status: 400 });
+  if (!parsed.success) {
+    return new Response(`Bad Request: ${parsed.error.message}`, { status: 400 });
+  }
   const body = parsed.data;
-
-  const today = startOfUtcDay(new Date());
-  const days = Math.min(Math.max(body.days ?? 30, 1), 365);
-  const from = addDaysUTC(today, -(days - 1));
 
   const providers = (
     [
@@ -62,51 +53,59 @@ export async function POST(req: NextRequest) {
     ] as Array<'github' | 'gitlab'>
   ).sort();
 
-  const ttlSec = Math.min(15 * 60, Math.max(2 * 60, days * 2));
-
-  const autoConcurrency = days > 180 ? 3 : days > 60 ? 4 : 6;
-  const concurrency = Math.min(Math.max(body.concurrency ?? autoConcurrency, 1), 8);
-
   const githubToken = env.GITHUB_TOKEN;
   const gitlabToken = env.GITLAB_TOKEN;
-  const gitlabBaseUrl = env.GITLAB_ISSUER || 'https://gitlab.com';
+  const gitlabBaseUrl = 'https://gitlab.com';
 
-  async function run() {
-    const res = await refreshUserDayRange(
+  if (providers.includes('github') && !githubToken) {
+    return new Response('Bad Request: github requested but GITHUB_TOKEN not set', { status: 400 });
+  }
+  if (providers.includes('gitlab') && !gitlabToken) {
+    return new Response('Bad Request: gitlab requested but GITLAB_TOKEN not set', { status: 400 });
+  }
+
+  const ttlSec = 5 * 60;
+  const todayStr = ymd(new Date());
+
+  async function runOnce() {
+    const wrote = await refreshUserRollups(
       { db },
       {
         userId: body.userId,
-        githubLogin: body.githubLogin?.trim(),
-        gitlabUsername: body.gitlabUsername?.trim(),
-        fromDayUtc: from,
-        toDayUtc: today,
+        githubLogin: body.githubLogin,
+        gitlabUsername: body.gitlabUsername,
         githubToken,
         gitlabToken,
         gitlabBaseUrl,
-        concurrency,
       },
     );
+
     await syncUserLeaderboards(db, body.userId);
+
     await setUserMetaFromProviders(body.userId, body.githubLogin, body.gitlabUsername);
-    return res;
+
+    return wrote;
   }
 
   try {
     if (providers.length === 2) {
-      const k1 = backfillLockKey(providers[0]!, body.userId);
-      const k2 = backfillLockKey(providers[1]!, body.userId);
+      const [p1, p2] = providers;
+      const k1 = backfillLockKey(p1 as 'github' | 'gitlab', body.userId);
+      const k2 = backfillLockKey(p2 as 'github' | 'gitlab', body.userId);
+
       return await withLock(k1, ttlSec, async () => {
         const got2 = await acquireLock(k2, ttlSec);
-        if (!got2) throw new Error(`LOCK_CONFLICT:${providers[1]}`);
+        if (!got2) throw new Error(`LOCK_CONFLICT:${p2}`);
         try {
-          const out = await run();
+          const out = await runOnce();
           return Response.json({
             ok: true,
             userId: body.userId,
             providers,
-            window: { from: ymd(from), to: ymd(today) },
-            daysRefreshed: out.daysRefreshed,
-            concurrency,
+            mode: 'rollups',
+            snapshotDate: todayStr,
+            wrote: out.wrote,
+            providerUsed: out.provider,
           });
         } finally {
           await releaseLock(k2);
@@ -116,23 +115,27 @@ export async function POST(req: NextRequest) {
 
     const p = providers[0]!;
     const key = backfillLockKey(p, body.userId);
+
     return await withLock(key, ttlSec, async () => {
-      const out = await run();
+      const out = await runOnce();
       return Response.json({
         ok: true,
         userId: body.userId,
         providers,
-        window: { from: ymd(from), to: ymd(today) },
-        daysRefreshed: out.daysRefreshed,
-        concurrency,
+        mode: 'rollups',
+        snapshotDate: todayStr,
+        wrote: out.wrote,
+        providerUsed: out.provider,
       });
     });
   } catch (err: unknown) {
+    const id = Math.random().toString(36).slice(2, 8);
+    console.error(`[rollup-backfill:${id}]`, err);
     const msg = String(err instanceof Error ? err.message : err);
     if (msg.startsWith('LOCK_CONFLICT')) {
       const p = msg.split(':')[1] || 'unknown';
       return new Response(`Conflict: backfill already running for ${p}`, { status: 409 });
     }
-    return new Response(`Internal Error: ${msg}`, { status: 500 });
+    return new Response(`Internal Error (ref ${id})`, { status: 500 });
   }
 }

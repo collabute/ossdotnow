@@ -15,7 +15,7 @@ export async function releaseLock(key: string): Promise<void> {
 
 export async function withLock<T>(key: string, ttlSec: number, fn: () => Promise<T>): Promise<T> {
   const got = await acquireLock(key, ttlSec);
-  if (!got) throw new Error(`Lock in use: ${key}`);
+  if (!got) throw new Error('LOCK_CONFLICT'); // normalized
   try {
     return await fn();
   } finally {

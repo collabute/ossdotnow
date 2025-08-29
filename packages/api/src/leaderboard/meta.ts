@@ -1,11 +1,10 @@
 // packages/api/src/leaderboard/meta.ts
-import { redis } from "../redis/client";
-import { syncUserLeaderboards } from "./redis";
-
-const USER_SET = "lb:users";
-const META = (id: string) => `lb:user:${id}`;
+import { syncUserLeaderboards } from './redis';
+import { redis } from '../redis/client';
 
 export type UserMetaInput = {
+  username?: string | null;
+  avatar?: string | null;
   githubLogin?: string | null;
   gitlabUsername?: string | null;
 };
@@ -16,26 +15,29 @@ export async function setUserMeta(
   opts: { seedLeaderboards?: boolean } = { seedLeaderboards: true },
 ): Promise<void> {
   const updates: Record<string, string> = {};
-  if (meta.githubLogin != null && meta.githubLogin.trim() !== "") {
-    updates.githubLogin = meta.githubLogin.trim();
-  }
-  if (meta.gitlabUsername != null && meta.gitlabUsername.trim() !== "") {
-    updates.gitlabUsername = meta.gitlabUsername.trim();
-  }
+  const put = (k: string, v?: string | null) => {
+    if (v && v.trim()) updates[k] = v.trim();
+  };
 
-  const pipe = redis.pipeline();
+  // display fields
+  put('username', meta.username);
+  // write the avatar to multiple keys so any reader finds it
+  put('avatar', meta.avatar);
+  put('image', meta.avatar);
+  put('avatarUrl', meta.avatar);
+  put('imageUrl', meta.avatar);
+
+  // provider handles
+  put('githubLogin', meta.githubLogin);
+  put('gitlabUsername', meta.gitlabUsername);
+
   if (Object.keys(updates).length > 0) {
-    pipe.hset(META(userId), updates);
+    await redis.hset(`lb:user:${userId}`, updates);
   }
-  pipe.sadd(USER_SET, userId);
-  await pipe.exec();
+  await redis.sadd('lb:users', userId);
 
   if (opts.seedLeaderboards) {
-    try {
-      const { db } = await import("@workspace/db");
-      await syncUserLeaderboards(db, userId);
-    } catch (err) {
-      console.error("[setUserMeta] syncUserLeaderboards failed:", err);
-    }
+    const { db } = await import('@workspace/db');
+    await syncUserLeaderboards(db, userId);
   }
 }
