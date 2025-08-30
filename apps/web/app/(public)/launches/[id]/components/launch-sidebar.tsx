@@ -30,11 +30,11 @@ import { Input } from '@workspace/ui/components/input';
 import { useCountdown } from '@/hooks/use-countdown';
 import { authClient } from '@workspace/auth/client';
 import Link from '@workspace/ui/components/link';
+import { isValidProvider } from '@/lib/constants';
 import { formatDistanceToNow } from 'date-fns';
 import { useTRPC } from '@/hooks/use-trpc';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import {isValidProvider} from '@/lib/constants'
 
 interface LaunchSidebarProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -381,12 +381,16 @@ export default function LaunchSidebar({ launch, project, projectId }: LaunchSide
         )}
 
         <div className="space-y-3">
-          <Button variant="outline" className="w-full gap-2 rounded-none" asChild>
-            <Link href={`/projects/${projectId}`}>
-              <ExternalLink className="h-4 w-4" />
-              View Project
-            </Link>
-          </Button>
+          <Button
+            variant="outline"
+            className="w-full gap-2 rounded-none"
+            render={(props) => (
+              <Link href={`/projects/${projectId}`} {...props}>
+                <ExternalLink className="h-4 w-4" />
+                View Project
+              </Link>
+            )}
+          />
           {isOwner && (
             <>
               <Button

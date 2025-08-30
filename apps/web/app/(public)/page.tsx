@@ -33,13 +33,13 @@ export default function Page() {
             <Button
               variant="outline"
               className="mx-auto flex w-min items-center gap-2 rounded-none"
-              asChild
-            >
-              <Link href="/early-submission">
-                <span>Early Submission</span>
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
+              render={(props) => (
+                <Link href="/early-submission" {...props}>
+                  <span>Early Submission</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
+            />
 
             <div>
               <GitAvatars />

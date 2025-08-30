@@ -1,21 +1,21 @@
 'use client';
 
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { Button } from '@workspace/ui/components/button';
-import { Separator } from '@workspace/ui/components/separator';
-import { useParams } from 'next/navigation';
-import { useTRPC } from '@/hooks/use-trpc';
-import Link from '@workspace/ui/components/link';
-import React from 'react';
-import { Form } from '@workspace/ui/components/form';
-import { ProjectEditForm } from '@/components/admin/project-edit-form';
-import { ProjectBasicInfo } from '@/components/admin/project-basic-info';
+import { RepositoryChangeDialog } from '@/components/admin/repository-change-dialog';
 import { ProjectClassification } from '@/components/admin/project-classification';
 import { ProjectSocialLinks } from '@/components/admin/project-social-links';
+import { ProjectBasicInfo } from '@/components/admin/project-basic-info';
+import { ProjectEditForm } from '@/components/admin/project-edit-form';
 import { ProjectSettings } from '@/components/admin/project-settings';
-import { RepositoryChangeDialog } from '@/components/admin/repository-change-dialog';
+import { Separator } from '@workspace/ui/components/separator';
+import { Button } from '@workspace/ui/components/button';
+import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { Form } from '@workspace/ui/components/form';
+import Link from '@workspace/ui/components/link';
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from 'next/navigation';
 import { isProject } from '@/types/project';
+import { useTRPC } from '@/hooks/use-trpc';
+import React from 'react';
 
 export default function AdminProjectEditPage() {
   const params = useParams();
@@ -52,13 +52,20 @@ export default function AdminProjectEditPage() {
     onSubmit,
   } = ProjectEditForm({
     projectData: isProject(projectData) ? projectData : null,
-    projectId
+    projectId,
   });
 
   // Set form values when project data loads
   React.useEffect(() => {
-    if (projectData && isProject(projectData) && !projectStatusesLoading && !projectTypesLoading && !tagsLoading) {
-      const currentTags = projectData.tagRelations?.map(relation => relation.tag?.name).filter(Boolean) ?? [];
+    if (
+      projectData &&
+      isProject(projectData) &&
+      !projectStatusesLoading &&
+      !projectTypesLoading &&
+      !tagsLoading
+    ) {
+      const currentTags =
+        projectData.tagRelations?.map((relation) => relation.tag?.name).filter(Boolean) ?? [];
 
       const formData = {
         name: projectData.name,
@@ -91,7 +98,7 @@ export default function AdminProjectEditPage() {
 
   if (projectLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
@@ -99,13 +106,20 @@ export default function AdminProjectEditPage() {
 
   if (!projectData || !isProject(projectData)) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-semibold">Project not found</h2>
-          <p className="text-muted-foreground">The project you&apos;re looking for doesn&apos;t exist.</p>
-          <Button asChild className="mt-4">
-            <Link href="/admin/projects">Back to Projects</Link>
-          </Button>
+          <p className="text-muted-foreground">
+            The project you&apos;re looking for doesn&apos;t exist.
+          </p>
+          <Button
+            className="mt-4"
+            render={(props) => (
+              <Link href="/admin/projects" {...props}>
+                Back to Projects
+              </Link>
+            )}
+          />
         </div>
       </div>
     );
@@ -115,17 +129,20 @@ export default function AdminProjectEditPage() {
     <div className="px-6">
       <div className="mx-auto max-w-[1080px] py-4">
         <div className="mb-6">
-          <Button variant="ghost" size="sm" asChild className="mb-4">
-            <Link href="/admin/projects">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Projects
-            </Link>
-          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-4"
+            render={(props) => (
+              <Link href="/admin/projects" {...props}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Projects
+              </Link>
+            )}
+          />
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-white">Edit Project</h1>
-            <p className="text-neutral-400">
-              Update project details and settings
-            </p>
+            <p className="text-neutral-400">Update project details and settings</p>
           </div>
         </div>
 
@@ -173,10 +190,20 @@ export default function AdminProjectEditPage() {
                 </div>
 
                 <div className="flex justify-end gap-4">
-                  <Button variant="outline" asChild className="rounded-none">
-                    <Link href="/admin/projects">Cancel</Link>
-                  </Button>
-                  <Button type="submit" disabled={updateProjectMutation.isPending} className="rounded-none">
+                  <Button
+                    variant="outline"
+                    className="rounded-none"
+                    render={(props) => (
+                      <Link href="/admin/projects" {...props}>
+                        Cancel
+                      </Link>
+                    )}
+                  />
+                  <Button
+                    type="submit"
+                    disabled={updateProjectMutation.isPending}
+                    className="rounded-none"
+                  >
                     {updateProjectMutation.isPending && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}

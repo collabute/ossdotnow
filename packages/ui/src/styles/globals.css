@@ -119,10 +119,25 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring/50 selection:bg-primary selection:text-primary-foreground;
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted) transparent;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground overscroll-none;
+  }
+  .root {
+    @apply bg-background isolate min-h-screen;
+  }
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--muted);
+    border-radius: 4px;
   }
 }
 

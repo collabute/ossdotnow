@@ -1,14 +1,11 @@
 'use client';
 
-import { MessageCircle } from 'lucide-react';
+import CommentThread from '@/components/comments/comment-thread';
+import ReplyForm from '@/components/comments/reply-form';
 import { Button } from '@workspace/ui/components/button';
 import { authClient } from '@workspace/auth/client';
 import Link from '@workspace/ui/components/link';
-import CommentThread from '@/components/comments/comment-thread';
-import ReplyForm from '@/components/comments/reply-form';
-
-
-
+import { MessageCircle } from 'lucide-react';
 
 interface LaunchCommentsProps {
   projectId: string;
@@ -42,22 +39,21 @@ export default function LaunchComments({
 
       {/* Comment Form */}
       {session?.user && (
-        <ReplyForm
-          projectId={projectId}
-          placeholder="Add your comment..."
-          className="w-full"
-        />
+        <ReplyForm projectId={projectId} placeholder="Add your comment..." className="w-full" />
       )}
 
       {!session?.user && (
         <div className="mt-6 rounded-none border border-neutral-800 bg-neutral-800/30 p-4">
           <div className="flex items-center justify-between">
             <p className="text-neutral-300">Login to join the conversation.</p>
-            <Button asChild>
-              <Link href={`/login?redirect=/launches/${projectId}`} className="rounded-none">
-                Login
-              </Link>
-            </Button>
+            <Button
+              className="rounded-none"
+              render={(props) => (
+                <Link href={`/login?redirect=/launches/${projectId}`} {...props}>
+                  Login
+                </Link>
+              )}
+            />
           </div>
         </div>
       )}

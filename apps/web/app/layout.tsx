@@ -1,6 +1,7 @@
 import { NextSSRPlugin } from '@uploadthing/react/next-ssr-plugin';
 import { ourFileRouter } from '@/app/api/uploadthing/core';
 import { extractRouterConfig } from 'uploadthing/server';
+import { TempNav } from '@/components/layout/temp-nav';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import Footer from '@/components/layout/footer';
@@ -54,21 +55,25 @@ export default function RootLayout({
       <body
         className={`${fontSans.variable} ${fontMono.variable} overscroll-none bg-[#101010] font-sans antialiased`}
       >
-        <Suspense>
-          <UTSSR />
-        </Suspense>
-        <Providers>
-          {children}
-          <Footer />
+        <main className="root">
+          <Suspense>
+            <UTSSR />
+          </Suspense>
+          <Providers>
+            {children}
+            <Footer />
 
-          <Databuddy
-            clientId={env.DATABUDDY_CLIENT_ID}
-            enableBatching={true}
-            trackErrors
-            trackOutgoingLinks
-          />
-          <Toaster />
-        </Providers>
+            <TempNav />
+
+            <Databuddy
+              clientId={env.DATABUDDY_CLIENT_ID}
+              enableBatching={true}
+              trackErrors
+              trackOutgoingLinks
+            />
+            <Toaster />
+          </Providers>
+        </main>
       </body>
     </html>
   );
