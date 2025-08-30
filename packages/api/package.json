@@ -12,8 +12,7 @@
     "./locks": "./src/redis/lock.ts",
     "./read": "./src/leaderboard/read.ts",
     "./use-meta": "./src/leaderboard/useMeta.ts",
-    "./meta": "./src/leaderboard/meta.ts",
-    "./kickoff": "./src/leaderboard/kickoff.ts"
+    "./meta": "./src/leaderboard/meta.ts"
   },
   "scripts": {
     "lint": "eslint ."

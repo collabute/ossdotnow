@@ -35,7 +35,6 @@ export async function setUserMetaFromProviders(
   }
 }
 
-/** Bulk read profile meta for a list of userIds (order preserved). */
 export async function getUserMetas(userIds: string[]): Promise<UserMeta[]> {
   const pipe = redis.pipeline();
   for (const id of userIds) pipe.hgetall(metaKey(id));

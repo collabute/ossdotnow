@@ -1,4 +1,3 @@
-// apps/web/app/api/internal/leaderboard/fanout/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +23,7 @@ const Body = z.object({
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers }).catch(() => null);
-  const role = (session?.user)?.role as string | undefined;
+  const role = session?.user?.role as string | undefined;
   if (!session || !role || !['admin', 'moderator'].includes(role)) {
     return new Response('Forbidden', { status: 403 });
   }
@@ -58,15 +57,12 @@ export async function POST(req: NextRequest) {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
-            authorization: `Bearer ${env.CRON_SECRET}`, // required by backfill route
+            authorization: `Bearer ${env.CRON_SECRET}`,
           },
           body: JSON.stringify({
             userId: u.userId,
             githubLogin: u.githubLogin,
             gitlabUsername: u.gitlabUsername,
-            // optional noise—backfill ignores these now; remove once you drop bwd-compat:
-            // days: 365,
-            // concurrency: limit,
           }),
         });
         results.push({ userId: u.userId, status: r.status });

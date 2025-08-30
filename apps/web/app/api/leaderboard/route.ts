@@ -26,11 +26,10 @@ export async function GET(req: NextRequest) {
     return new Response(`Bad Request: 'all' window not supported by current schema`, { status: 400 });
   }
 
-  // If you add 'all' later, ensure your reader also supports it.
   const windowForReader = q.window === "all" ? ("365d" as "30d" | "365d") : q.window;
 
   const { entries, nextCursor, source } = await getLeaderboardPage(db, {
-    window: windowForReader, // '30d' | '365d' (or 'all' if you implement it)
+    window: windowForReader,
     limit: q.limit,
     cursor: q.cursor,
   });

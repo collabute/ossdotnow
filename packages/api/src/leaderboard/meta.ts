@@ -1,4 +1,3 @@
-// packages/api/src/leaderboard/meta.ts
 import { syncUserLeaderboards } from './redis';
 import { redis } from '../redis/client';
 
@@ -19,15 +18,12 @@ export async function setUserMeta(
     if (v && v.trim()) updates[k] = v.trim();
   };
 
-  // display fields
   put('username', meta.username);
-  // write the avatar to multiple keys so any reader finds it
   put('avatar', meta.avatar);
   put('image', meta.avatar);
   put('avatarUrl', meta.avatar);
   put('imageUrl', meta.avatar);
 
-  // provider handles
   put('githubLogin', meta.githubLogin);
   put('gitlabUsername', meta.gitlabUsername);
 

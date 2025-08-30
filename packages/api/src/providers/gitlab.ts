@@ -1,15 +1,12 @@
-// packages/api/providers/gitlabProvider.ts
-/* GitLab provider: fetch 365d once, derive 30d from that same event set. */
 import { z } from 'zod/v4';
 
-/* ------------------------- Types ------------------------- */
 export type DateLike = string | Date;
 export type DateRange = { from: DateLike; to: DateLike };
 
 export type GitlabContributionTotals = {
   username: string;
   commits: number;
-  mrs: number; // map to "prs" when writing to DB
+  prs: number;
   issues: number;
   meta?: {
     pagesFetched: number;
@@ -19,7 +16,6 @@ export type GitlabContributionTotals = {
   };
 };
 
-/* ------------------------- Schemas ------------------------- */
 const GitlabUserSchema = z.object({
   id: z.number(),
   username: z.string(),
@@ -39,7 +35,6 @@ const GitlabEventSchema = z.object({
     .optional(),
 });
 
-/* ------------------------- Utils ------------------------- */
 function cleanBaseUrl(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url;
 }
@@ -67,7 +62,6 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/* ------------------------- HTTP ------------------------- */
 async function glGet(
   baseUrl: string,
   path: string,
@@ -93,7 +87,6 @@ async function glGet(
   try {
     let res = await fetch(u.toString(), { headers, signal: controller.signal });
 
-    // Basic rate limiting retry
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get('Retry-After') || 1);
       const waitSec = Math.min(Math.max(retryAfter, 1), 10);
@@ -112,7 +105,6 @@ async function glGet(
   }
 }
 
-/* ------------------------- Core helpers ------------------------- */
 export async function resolveGitlabUserId(
   username: string,
   baseUrl: string,
@@ -189,14 +181,12 @@ async function fetchUserEventsByWindow(
     const events = z.array(GitlabEventSchema).parse(json);
     totalScanned += events.length;
 
-    // Enforce window just in case
     const filteredByWindow = events.filter((e) => {
       const t = new Date(e.created_at).getTime();
       return t >= lowerMs && t < upperMs;
     });
     out.push(...filteredByWindow);
 
-    // If page fully older than lower bound, we can break early
     if (
       filteredByWindow.length === 0 &&
       events.length > 0 &&
@@ -242,21 +232,19 @@ async function filterPublicEvents(
     const vis = await getProjectVisibility(baseUrl, pid, token);
     if (vis === 'public') out.push(...list);
   }
-  // Orphans (no project_id) are ignored; they typically can't be attributed safely.
 
   return out;
 }
 
 function reducePublicContributionCounts(events: z.infer<typeof GitlabEventSchema>[]) {
   let commits = 0;
-  let mrs = 0;
+  let prs = 0;
   let issues = 0;
 
   for (const e of events) {
     const target = e.target_type ?? undefined;
     const action = (e.action_name || '').toLowerCase();
 
-    // Commits from push events
     if (e.push_data && typeof e.push_data.commit_count === 'number') {
       if (action.includes('push')) {
         commits += Math.max(0, e.push_data.commit_count || 0);
@@ -264,25 +252,20 @@ function reducePublicContributionCounts(events: z.infer<typeof GitlabEventSchema
       }
     }
 
-    // Opened MRs
     if (target === 'MergeRequest' && action === 'opened') {
-      mrs += 1;
+      prs += 1;
       continue;
     }
 
-    // Opened Issues
     if (target === 'Issue' && action === 'opened') {
       issues += 1;
       continue;
     }
   }
 
-  return { commits, mrs, issues };
+  return { commits, prs, issues };
 }
 
-/* ------------------------- Public API ------------------------- */
-
-/** Arbitrary range (kept for completeness and testing). */
 export async function getGitlabContributionTotals(
   username: string,
   range: DateRange,
@@ -296,7 +279,7 @@ export async function getGitlabContributionTotals(
 
   const user = await resolveGitlabUserId(username, baseUrl, token);
   if (!user) {
-    return { username, commits: 0, mrs: 0, issues: 0 };
+    return { username, commits: 0, prs: 0, issues: 0 };
   }
 
   const { events, pagesFetched, perPage, totalScanned } = await fetchUserEventsByWindow(
@@ -326,18 +309,14 @@ export async function getGitlabContributionTotals(
   };
 }
 
-/**
- * One-shot rollups for LAST 30D & LAST 365D (as of "now").
- * Implementation fetches 365d once and derives 30d from that same set.
- */
 export async function getGitlabContributionRollups(
   username: string,
   baseUrl: string,
   token?: string,
 ): Promise<{
   username: string;
-  last30d: GitlabContributionTotals; // map mrs -> prs on write
-  last365d: GitlabContributionTotals; // map mrs -> prs on write
+  last30d: GitlabContributionTotals;
+  last365d: GitlabContributionTotals;
   meta: {
     pagesFetched: number;
     perPage: number;
@@ -357,7 +336,7 @@ export async function getGitlabContributionRollups(
 
   const user = await resolveGitlabUserId(username, baseUrl, token);
   if (!user) {
-    const empty: GitlabContributionTotals = { username, commits: 0, mrs: 0, issues: 0 };
+    const empty: GitlabContributionTotals = { username, commits: 0, prs: 0, issues: 0 };
     return {
       username,
       last30d: empty,
@@ -374,7 +353,6 @@ export async function getGitlabContributionRollups(
     };
   }
 
-  // Fetch once for 365d
   const { events, pagesFetched, perPage, totalScanned } = await fetchUserEventsByWindow(
     user.id,
     baseUrl,
@@ -387,16 +365,13 @@ export async function getGitlabContributionRollups(
     },
   );
 
-  // Keep only public events
   const publicEvents365 = await filterPublicEvents(baseUrl, token, events);
 
-  // Derive 30d subset
   const from30Ms = new Date(from30Iso).getTime();
   const publicEvents30 = publicEvents365.filter(
     (e) => new Date(e.created_at).getTime() >= from30Ms,
   );
 
-  // Reduce
   const totals365 = reducePublicContributionCounts(publicEvents365);
   const totals30 = reducePublicContributionCounts(publicEvents30);
 
@@ -438,7 +413,6 @@ export async function getGitlabContributionRollups(
   };
 }
 
-/** Optional: day-specific helper for parity. */
 export async function getGitlabContributionTotalsForDay(
   username: string,
   dayUtc: DateLike,

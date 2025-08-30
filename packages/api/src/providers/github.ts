@@ -1,18 +1,15 @@
-// packages/api/providers/githubProvider.ts
-/* GitHub provider: one-shot rollups for last 30d & last 365d */
 const GITHUB_GQL_ENDPOINT = 'https://api.github.com/graphql';
 
 import { z } from 'zod/v4';
 
-/* ------------------------- Types ------------------------- */
 export type DateLike = string | Date;
 export type DateRange = { from: DateLike; to: DateLike };
 
 export type GithubContributionTotals = {
   login: string;
-  commits: number; // totalCommitContributions
-  prs: number; // totalPullRequestContributions
-  issues: number; // totalIssueContributions
+  commits: number;
+  prs: number;
+  issues: number;
   rateLimit?: {
     cost: number;
     remaining: number;
@@ -20,7 +17,6 @@ export type GithubContributionTotals = {
   };
 };
 
-/* ------------------------- Schemas ------------------------- */
 const RateLimitSchema = z
   .object({
     cost: z.number(),
@@ -29,7 +25,12 @@ const RateLimitSchema = z
   })
   .optional();
 
-const ContributionsWindowSchema = z.object({
+const CalendarSchema = z.object({
+  totalContributions: z.number(),
+});
+
+const WindowSchema = z.object({
+  contributionCalendar: CalendarSchema,
   totalCommitContributions: z.number(),
   totalPullRequestContributions: z.number(),
   totalIssueContributions: z.number(),
@@ -38,10 +39,9 @@ const ContributionsWindowSchema = z.object({
 const UserWindowsSchema = z.object({
   id: z.string(),
   login: z.string(),
-  // We alias two windows (c30, c365) or a generic one (cwin)
-  c30: ContributionsWindowSchema.optional(),
-  c365: ContributionsWindowSchema.optional(),
-  cwin: ContributionsWindowSchema.optional(),
+  c30: WindowSchema.optional(),
+  c365: WindowSchema.optional(),
+  cwin: WindowSchema.optional(),
 });
 
 const GraphQLDataSchema = z.object({
@@ -62,7 +62,6 @@ const GraphQLResponseSchema = z.object({
     .optional(),
 });
 
-/* ------------------------- Utils ------------------------- */
 function toIsoDateTime(x: DateLike): string {
   const d = typeof x === 'string' ? new Date(x) : x;
   return d.toISOString();
@@ -77,9 +76,7 @@ async function githubGraphQLRequest<T>({
   query: string;
   variables: Record<string, unknown>;
 }): Promise<T> {
-  if (!token) {
-    throw new Error('GitHub GraphQL token is required. Pass GITHUB_TOKEN.');
-  }
+  if (!token) throw new Error('GitHub GraphQL token is required. Pass GITHUB_TOKEN.');
 
   const res = await fetch(GITHUB_GQL_ENDPOINT, {
     method: 'POST',
@@ -108,9 +105,6 @@ async function githubGraphQLRequest<T>({
   return data as T;
 }
 
-/* ------------------------- Public API ------------------------- */
-
-/** Arbitrary range fetch (respects the provided DateRange). */
 export async function getGithubContributionTotals(
   login: string,
   range: DateRange,
@@ -122,16 +116,13 @@ export async function getGithubContributionTotals(
         id
         login
         cwin: contributionsCollection(from: $from, to: $to) {
+          contributionCalendar { totalContributions }
           totalCommitContributions
           totalPullRequestContributions
           totalIssueContributions
         }
       }
-      rateLimit {
-        cost
-        remaining
-        resetAt
-      }
+      rateLimit { cost remaining resetAt }
     }
   `;
 
@@ -141,32 +132,16 @@ export async function getGithubContributionTotals(
     variables: { login, from: toIsoDateTime(range.from), to: toIsoDateTime(range.to) },
   });
 
-  if (!data.user || !data.user.cwin) {
-    return {
-      login,
-      commits: 0,
-      prs: 0,
-      issues: 0,
-      rateLimit: data.rateLimit ? { ...data.rateLimit } : undefined,
-    };
-  }
-
-  const w = data.user.cwin;
+  const w = data.user?.cwin;
   return {
-    login: data.user.login,
-    commits: w.totalCommitContributions,
-    prs: w.totalPullRequestContributions,
-    issues: w.totalIssueContributions,
+    login: data.user?.login ?? login,
+    commits: w?.totalCommitContributions ?? 0,
+    prs: w?.totalPullRequestContributions ?? 0,
+    issues: w?.totalIssueContributions ?? 0,
     rateLimit: data.rateLimit ? { ...data.rateLimit } : undefined,
   };
 }
 
-/**
- * One-shot rollups for LAST 30D & LAST 365D (as of "now").
- * Use this in your daily cron, then upsert two rows:
- *   - (userId, 'last_30d', commits/prs/issues/total)
- *   - (userId, 'last_365d', commits/prs/issues/total)
- */
 export async function getGithubContributionRollups(
   login: string,
   token: string,
@@ -187,21 +162,19 @@ export async function getGithubContributionRollups(
         id
         login
         c30: contributionsCollection(from: $from30, to: $to) {
+          contributionCalendar { totalContributions }
           totalCommitContributions
           totalPullRequestContributions
           totalIssueContributions
         }
         c365: contributionsCollection(from: $from365, to: $to) {
+          contributionCalendar { totalContributions }
           totalCommitContributions
           totalPullRequestContributions
           totalIssueContributions
         }
       }
-      rateLimit {
-        cost
-        remaining
-        resetAt
-      }
+      rateLimit { cost remaining resetAt }
     }
   `;
 
@@ -214,7 +187,7 @@ export async function getGithubContributionRollups(
   const rl = data.rateLimit ? { ...data.rateLimit } : undefined;
   const userLogin = data.user?.login ?? login;
 
-  const pick = (w?: z.infer<typeof ContributionsWindowSchema>): GithubContributionTotals => ({
+  const pick = (w?: z.infer<typeof WindowSchema>): GithubContributionTotals => ({
     login: userLogin,
     commits: w?.totalCommitContributions ?? 0,
     prs: w?.totalPullRequestContributions ?? 0,
@@ -230,7 +203,6 @@ export async function getGithubContributionRollups(
   };
 }
 
-/** Optional: day-specific, kept for compatibility. */
 export async function getGithubContributionTotalsForDay(
   login: string,
   dayUtc: DateLike,

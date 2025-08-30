@@ -1,29 +1,24 @@
-// packages/api/aggregators/contribRollups.ts
-import { sql } from "drizzle-orm";
-import type { DB } from "@workspace/db";
+import type { DB } from '@workspace/db';
+import { sql } from 'drizzle-orm';
 
-import { contribRollups } from "@workspace/db/schema"; // new table (user_id, period, commits, prs, issues, total, fetched_at, updated_at)
-import { getGithubContributionRollups } from "../providers/github";
-import { getGitlabContributionRollups } from "../providers/gitlab";
-
-// Providers: use the rollup functions that fetch today's snapshot windows
+import { getGitlabContributionRollups } from '../providers/gitlab';
+import { getGithubContributionRollups } from '../providers/github';
+import { contribRollups } from '@workspace/db/schema';
 
 export type AggregatorDeps = { db: DB };
 
 export type RefreshUserRollupsArgs = {
   userId: string;
 
-  // Exactly one of these should be present for a user profile
   githubLogin?: string | null;
   gitlabUsername?: string | null;
 
-  // Provider creds/config
   githubToken?: string;
   gitlabToken?: string;
-  gitlabBaseUrl?: string; // defaulted to https://gitlab.com if omitted
+  gitlabBaseUrl?: string;
 };
 
-type PeriodKey = "last_30d" | "last_365d";
+type PeriodKey = 'last_30d' | 'last_365d';
 
 function nowUtc(): Date {
   return new Date();
@@ -35,7 +30,7 @@ async function upsertRollup(
     userId: string;
     period: PeriodKey;
     commits: number;
-    prs: number; // for GitLab, pass MRs here
+    prs: number;
     issues: number;
     fetchedAt: Date;
   },
@@ -71,7 +66,7 @@ export async function refreshUserRollups(
   deps: AggregatorDeps,
   args: RefreshUserRollupsArgs,
 ): Promise<{
-  provider: "github" | "gitlab" | "none";
+  provider: 'github' | 'gitlab' | 'none';
   wrote: {
     last_30d?: { commits: number; prs: number; issues: number; total: number };
     last_365d?: { commits: number; prs: number; issues: number; total: number };
@@ -80,12 +75,11 @@ export async function refreshUserRollups(
   const db = deps.db;
   const now = nowUtc();
 
-  // Decide provider (your app-level invariant: one or the other)
   const hasGithub = !!args.githubLogin && !!args.githubToken;
-  const hasGitlab = !!args.gitlabUsername; // token optional for public, but recommended
+  const hasGitlab = !!args.gitlabUsername;
 
   if (!hasGithub && !hasGitlab) {
-    return { provider: "none", wrote: {} };
+    return { provider: 'none', wrote: {} };
   }
 
   if (hasGithub && hasGitlab) {
@@ -99,7 +93,7 @@ export async function refreshUserRollups(
 
     await upsertRollup(db, {
       userId: args.userId,
-      period: "last_30d",
+      period: 'last_30d',
       commits: roll.last30d.commits,
       prs: roll.last30d.prs,
       issues: roll.last30d.issues,
@@ -108,7 +102,7 @@ export async function refreshUserRollups(
 
     await upsertRollup(db, {
       userId: args.userId,
-      period: "last_365d",
+      period: 'last_365d',
       commits: roll.last365d.commits,
       prs: roll.last365d.prs,
       issues: roll.last365d.issues,
@@ -116,7 +110,7 @@ export async function refreshUserRollups(
     });
 
     return {
-      provider: "github",
+      provider: 'github',
       wrote: {
         last_30d: {
           commits: roll.last30d.commits,
@@ -134,53 +128,49 @@ export async function refreshUserRollups(
     };
   }
 
-  // GitLab path
-  const base = (args.gitlabBaseUrl?.trim() || "https://gitlab.com") as string;
+  const base = (args.gitlabBaseUrl?.trim() || 'https://gitlab.com') as string;
   const r = await getGitlabContributionRollups(args.gitlabUsername!.trim(), base, args.gitlabToken);
 
-  // Map MRs -> prs for DB
   await upsertRollup(db, {
     userId: args.userId,
-    period: "last_30d",
+    period: 'last_30d',
     commits: r.last30d.commits,
-    prs: r.last30d.mrs,
+    prs: r.last30d.prs,
     issues: r.last30d.issues,
     fetchedAt: now,
   });
 
   await upsertRollup(db, {
     userId: args.userId,
-    period: "last_365d",
+    period: 'last_365d',
     commits: r.last365d.commits,
-    prs: r.last365d.mrs,
+    prs: r.last365d.prs,
     issues: r.last365d.issues,
     fetchedAt: now,
   });
 
   return {
-    provider: "gitlab",
+    provider: 'gitlab',
     wrote: {
       last_30d: {
         commits: r.last30d.commits,
-        prs: r.last30d.mrs,
+        prs: r.last30d.prs,
         issues: r.last30d.issues,
-        total: r.last30d.commits + r.last30d.mrs + r.last30d.issues,
+        total: r.last30d.commits + r.last30d.prs + r.last30d.issues,
       },
       last_365d: {
         commits: r.last365d.commits,
-        prs: r.last365d.mrs,
+        prs: r.last365d.prs,
         issues: r.last365d.issues,
-        total: r.last365d.commits + r.last365d.mrs + r.last365d.issues,
+        total: r.last365d.commits + r.last365d.prs + r.last365d.issues,
       },
     },
   };
 }
 
-/**
- * Batch helper: refresh many users with a concurrency limit.
- * Pass a list of user descriptors (each with either githubLogin or gitlabUsername).
- */
-export async function refreshManyUsersRollups<T extends RefreshUserRollupsArgs & { userId: string }>(
+export async function refreshManyUsersRollups<
+  T extends RefreshUserRollupsArgs & { userId: string },
+>(
   deps: AggregatorDeps,
   users: readonly T[],
   opts?: { concurrency?: number; onProgress?: (done: number, total: number) => void },

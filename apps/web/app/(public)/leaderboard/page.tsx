@@ -1,31 +1,32 @@
-import LeaderboardClient from "@/components/leaderboard/leaderboard-client";
+import LeaderboardClient from '@/components/leaderboard/leaderboard-client';
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-type WindowKey = "all" | "30d" | "365d";
-
-function getWindow(searchParams?: Record<string, string | string[] | undefined>): WindowKey {
-  const w = (searchParams?.window as string) || "30d";
-  return w === "all" || w === "30d" || w === "365d" ? (w as WindowKey) : "30d";
+function normalizeWindow(v: unknown): '30d' | '365d' {
+  if (v === '30d') return '30d';
+  if (v === '365d') return '365d';
+  return '365d';
 }
 
-export default async function LeaderboardPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}) {
-  const window = getWindow(searchParams);
+export default async function LeaderboardPage({ searchParams }: { searchParams?: SearchParams }) {
+  const sp = await searchParams;
+  const winParam = sp && 'window' in sp
+    ? Array.isArray(sp.window) ? sp.window[0] : sp.window
+    : undefined;
+  const initialWindow = normalizeWindow(winParam);
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <div className="mb-6 mt-12">
+      <div className="mt-12 mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Global Leaderboard</h1>
         <p className="text-muted-foreground">
-          Top contributors across GitHub and GitLab.
+          Top contributors across GitHub and GitLab based of open source contributions.
         </p>
       </div>
-      <LeaderboardClient initialWindow={window} />
+      <LeaderboardClient initialWindow={initialWindow} />
     </div>
   );
 }

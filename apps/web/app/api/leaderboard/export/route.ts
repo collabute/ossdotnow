@@ -1,26 +1,17 @@
-// apps/web/app/api/leaderboard/export/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { NextRequest } from 'next/server';
-import { z } from 'zod/v4';
 import { db } from '@workspace/db';
+import { z } from 'zod/v4';
 
-// NEW read helper that uses contribRollups internally
-import { getLeaderboardPage } from '@workspace/api/read'; // your refactored reader
-
-// User meta gives us githubLogin / gitlabUsername to tag provider in CSV
+import { getLeaderboardPage } from '@workspace/api/read';
 import { getUserMetas } from '@workspace/api/use-meta';
 
-// If your contrib_period enum includes 'all_time', flip this to true
-const HAS_ALL_TIME = false as const;
-
 const Query = z.object({
-  // provider is no longer used, but keep for backward-compat (ignored)
   provider: z.enum(['combined', 'github', 'gitlab']).default('combined'),
-  window: z.enum(HAS_ALL_TIME ? (['all', '30d', '365d'] as const) : (['30d', '365d'] as const))
-    .default('30d'),
+  window: z.enum(['30d', '365d']).default('30d'),
   limit: z.coerce.number().int().min(1).max(2000).default(500),
   cursor: z.coerce.number().int().min(0).default(0),
 });
@@ -32,18 +23,12 @@ export async function GET(req: NextRequest) {
   }
   const { window, limit, cursor } = parsed.data;
 
-  // Guard: 'all' not supported unless you added all_time snapshots
-  if (window === 'all' && !HAS_ALL_TIME) {
-    return new Response(`Bad Request: 'all' window not supported by current schema`, { status: 400 });
-  }
-
-  // Page through leaderboard to collect up to `limit` rows
   let entries: Array<{ userId: string; score: number }> = [];
   let next = cursor;
 
   while (entries.length < limit) {
     const page = await getLeaderboardPage(db, {
-      window: window === 'all' ? ('365d' as '30d' | '365d') : window, // 'all' would be supported only if HAS_ALL_TIME=true in reader too
+      window,
       limit: Math.min(200, limit - entries.length),
       cursor: next,
     });
@@ -57,7 +42,6 @@ export async function GET(req: NextRequest) {
   const metas = await getUserMetas(userIds);
   const metaMap = new Map(metas.map((m) => [m.userId, m]));
 
-  // Build CSV; since each user has one provider, put score into the correct column
   const header = [
     'rank',
     'userId',
@@ -77,7 +61,6 @@ export async function GET(req: NextRequest) {
     const hasGithub = !!(m?.githubLogin && String(m.githubLogin).trim());
     const hasGitlab = !!(m?.gitlabUsername && String(m.gitlabUsername).trim());
 
-    // allocate score to provider column based on meta
     const githubScore = hasGithub ? e.score : 0;
     const gitlabScore = hasGitlab ? e.score : 0;
 

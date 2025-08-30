@@ -1,5 +1,3 @@
-// routes/api/cron/daily/route.ts — rollup snapshot refresh (no per-day backfill)
-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -45,10 +43,8 @@ export async function GET(req: NextRequest) {
   const snapshotDate = ymd(new Date());
 
   try {
-    // Sanity check Redis
     await redis.ping();
 
-    // Enumerate users to process
     const allIdsRaw = await redis.smembers(USER_SET);
     const userIds = (Array.isArray(allIdsRaw) ? allIdsRaw : []).map(String).slice(0, limit);
 
@@ -64,7 +60,6 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Fetch provider metadata (githubLogin / gitlabUsername) in a pipeline
     const pipe = redis.pipeline();
     for (const id of userIds) pipe.hgetall(META(id));
     const rawResults = await pipe.exec();
@@ -98,7 +93,6 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Bounded parallelism
     const workers = Math.max(1, Math.min(concurrency, 8));
     let idx = 0;
     let processed = 0;
@@ -120,7 +114,6 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        // Token checks per provider
         if (githubLogin && !env.GITHUB_TOKEN) {
           errors.push({ userId, error: 'Missing GITHUB_TOKEN' });
           skipped++;
@@ -133,7 +126,6 @@ export async function GET(req: NextRequest) {
         }
 
         try {
-          // One-shot snapshot for last_30d + last_365d
           await refreshUserRollups(
             { db },
             {
@@ -146,7 +138,6 @@ export async function GET(req: NextRequest) {
             },
           );
 
-          // Push to Redis leaderboards from contribRollups
           await syncUserLeaderboards(db, userId);
           processed++;
         } catch (err) {

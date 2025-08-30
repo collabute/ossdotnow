@@ -1,4 +1,3 @@
-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -14,13 +13,11 @@ const HAS_ALL_TIME = false as const;
 
 type WindowKey = '30d' | '365d' | 'all';
 
-// request body
 const Body = z.object({
   window: z.enum(HAS_ALL_TIME ? (['all', '30d', '365d'] as const) : (['30d', '365d'] as const)),
   userIds: z.array(z.string().min(1)).max(2000),
 });
 
-// map window -> DB period
 const PERIOD_FROM_WINDOW: Record<'30d' | '365d', 'last_30d' | 'last_365d'> = {
   '30d': 'last_30d',
   '365d': 'last_365d',
@@ -38,7 +35,6 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: true, window, entries: [] });
   }
 
-  // guard if 'all' requested but enum not supported in DB
   if (window === 'all' && !HAS_ALL_TIME) {
     return new Response(`Bad Request: 'all' window not supported by current schema`, {
       status: 400,
@@ -46,7 +42,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Build WHERE by window/period
     const where = and(
       inArray(contribRollups.userId, userIds),
       window === 'all'
@@ -54,7 +49,6 @@ export async function POST(req: NextRequest) {
         : eq(contribRollups.period, PERIOD_FROM_WINDOW[window]),
     );
 
-    // Fetch snapshot rows
     const rows = await db
       .select({
         userId: contribRollups.userId,
@@ -66,7 +60,6 @@ export async function POST(req: NextRequest) {
       .from(contribRollups)
       .where(where);
 
-    // Index by userId for quick lookup
     const byId = new Map(
       rows.map((r) => [
         r.userId,
@@ -79,7 +72,6 @@ export async function POST(req: NextRequest) {
       ]),
     );
 
-    // Preserve requested order and fill zeros for missing
     const entries = userIds.map((id) => {
       const v = byId.get(id) ?? { commits: 0, prs: 0, issues: 0, total: 0 };
       return { userId: id, ...v };

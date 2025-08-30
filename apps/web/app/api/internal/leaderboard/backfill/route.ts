@@ -1,4 +1,3 @@
-// routes/api/backfill-user/route.ts (updated for rollup snapshots)
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,7 +9,7 @@ import { isCronAuthorized } from '@workspace/env/verify-cron';
 import { env } from '@workspace/env/server';
 
 import { backfillLockKey, withLock, acquireLock, releaseLock } from '@workspace/api/locks';
-import { syncUserLeaderboards } from '@workspace/api/leaderboard/redis'; // <- refactored to use contribRollups
+import { syncUserLeaderboards } from '@workspace/api/leaderboard/redis';
 import { setUserMetaFromProviders } from '@workspace/api/use-meta';
 import { db } from '@workspace/db';
 import { refreshUserRollups } from '@workspace/api/aggregator';

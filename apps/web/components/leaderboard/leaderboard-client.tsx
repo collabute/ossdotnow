@@ -4,13 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import * as React from 'react';
 
 import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from '@workspace/ui/components/select';
-import {
   Table,
   TableHeader,
   TableRow,
@@ -18,11 +11,18 @@ import {
   TableBody,
   TableCell,
 } from '@workspace/ui/components/table';
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from '@workspace/ui/components/select';
 import { Card, CardContent } from '@workspace/ui/components/card';
 import { Button } from '@workspace/ui/components/button';
 import { Input } from '@workspace/ui/components/input';
 
-type WindowKey = '30d' | '365d';
+type UIWindow = '30d' | '365d';
 
 type TopEntry = { userId: string; score: number };
 
@@ -54,7 +54,7 @@ type LeaderRow = {
 type SortKey = 'rank' | 'userId' | 'total' | 'commits' | 'prs' | 'issues';
 type SortDir = 'asc' | 'desc';
 
-async function fetchTop(window: WindowKey, limit: number, cursor = 0) {
+async function fetchTop(window: UIWindow, limit: number, cursor = 0) {
   const url = `/api/leaderboard?window=${window}&limit=${limit}&cursor=${cursor}`;
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`Failed to fetch leaderboard: ${await res.text()}`);
@@ -66,7 +66,7 @@ async function fetchTop(window: WindowKey, limit: number, cursor = 0) {
   };
 }
 
-async function fetchDetails(window: WindowKey, userIds: string[]) {
+async function fetchDetails(window: UIWindow, userIds: string[]) {
   if (userIds.length === 0) return { ok: true, window, entries: [] as DetailsEntry[] };
   const res = await fetch(`/api/leaderboard/details`, {
     method: 'POST',
@@ -75,7 +75,7 @@ async function fetchDetails(window: WindowKey, userIds: string[]) {
     body: JSON.stringify({ window, userIds }),
   });
   if (!res.ok) throw new Error(`Failed to fetch details: ${await res.text()}`);
-  return (await res.json()) as { ok: true; window: WindowKey; entries: DetailsEntry[] };
+  return (await res.json()) as { ok: true; window: UIWindow; entries: DetailsEntry[] };
 }
 
 async function fetchProfiles(userIds: string[]): Promise<Profile[]> {
@@ -94,28 +94,32 @@ async function fetchProfiles(userIds: string[]): Promise<Profile[]> {
   return data.entries;
 }
 
-export default function LeaderboardClient({ initialWindow }: { initialWindow: WindowKey }) {
+export default function LeaderboardClient({
+  initialWindow,
+}: {
+  initialWindow: 'all' | '30d' | '365d';
+}) {
   const router = useRouter();
   const search = useSearchParams();
 
-  const [window, setWindow] = React.useState<WindowKey>(initialWindow);
+  const normalized: UIWindow = initialWindow === 'all' ? '365d' : initialWindow;
+
+  const [window, setWindow] = React.useState<UIWindow>(normalized);
   const [rows, setRows] = React.useState<LeaderRow[] | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [limit, setLimit] = React.useState(25);
   const [cursor, setCursor] = React.useState(0);
   const [nextCursor, setNextCursor] = React.useState<number | null>(null);
-  const [source, setSource] = React.useState<'redis' | 'db' | null>(null);
 
   const [sortKey, setSortKey] = React.useState<SortKey>('rank');
   const [sortDir, setSortDir] = React.useState<SortDir>('asc');
 
-  const doFetch = React.useCallback(async (w: WindowKey, lim: number, cur: number) => {
+  const doFetch = React.useCallback(async (w: UIWindow, lim: number, cur: number) => {
     setLoading(true);
     setError(null);
     try {
       const top = await fetchTop(w, lim, cur);
-      setSource(top.source);
       const ids = top.entries.map((e) => e.userId);
       const [details, profiles] = await Promise.all([fetchDetails(w, ids), fetchProfiles(ids)]);
       const detailMap = new Map(details.entries.map((d) => [d.userId, d]));
@@ -141,11 +145,14 @@ export default function LeaderboardClient({ initialWindow }: { initialWindow: Wi
       });
       setRows(merged);
       setNextCursor(top.nextCursor);
-    } catch (err: any) {
-      setError(String(err?.message || err));
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(String(err));
+      }
       setRows([]);
       setNextCursor(null);
-      setSource(null);
     } finally {
       setLoading(false);
     }
@@ -219,7 +226,7 @@ export default function LeaderboardClient({ initialWindow }: { initialWindow: Wi
             <label className="text-sm font-medium">Window</label>
             <Select
               value={window}
-              onValueChange={(v: WindowKey) => {
+              onValueChange={(v: UIWindow) => {
                 setCursor(0);
                 setWindow(v);
               }}
@@ -230,7 +237,6 @@ export default function LeaderboardClient({ initialWindow }: { initialWindow: Wi
               <SelectContent className="rounded-none">
                 <SelectItem value="30d">Last 30 days</SelectItem>
                 <SelectItem value="365d">Last year</SelectItem>
-                {/* Add 'all' if you implement all_time snapshots */}
               </SelectContent>
             </Select>
           </div>
@@ -260,7 +266,6 @@ export default function LeaderboardClient({ initialWindow }: { initialWindow: Wi
         </CardContent>
       </Card>
 
-      {/* Table */}
       <Card className="rounded-none">
         <CardContent className="p-4">
           <div className="overflow-x-auto">
@@ -359,13 +364,9 @@ export default function LeaderboardClient({ initialWindow }: { initialWindow: Wi
               </TableBody>
             </Table>
           </div>
-          <div className="text-muted-foreground mt-3 text-xs">
-            Source: {source ?? '—'} {source === 'redis' ? '(live / warming)' : ''}
-          </div>
         </CardContent>
       </Card>
 
-      {/* Pagination */}
       <div className="flex items-center justify-between">
         <Button
           variant="outline"
