@@ -163,25 +163,38 @@ export default function ProfilePage({ id }: { id: string }) {
                             <h1 className="truncate text-lg font-bold">{profile?.name}</h1>
 
                             <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="sm" asChild>
-                                <Link
-                                  href={`https://${profile?.git?.provider}.com/${profile?.git?.login}`}
-                                  target="_blank"
-                                >
-                                  {profile?.git?.provider === 'github' ? (
-                                    <Icons.github className="h-4 w-4" />
-                                  ) : (
-                                    <Icons.gitlab className="h-4 w-4" />
-                                  )}
-                                </Link>
-                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                render={(props) => (
+                                  <Link
+                                    href={`https://${profile?.git?.provider}.com/${profile?.git?.login}`}
+                                    target="_blank"
+                                    {...props}
+                                  >
+                                    {profile?.git?.provider === 'github' ? (
+                                      <Icons.github className="size-4" />
+                                    ) : (
+                                      <Icons.gitlab className="size-4" />
+                                    )}
+                                  </Link>
+                                )}
+                              />
 
                               {profile?.git?.blog && (
-                                <Button variant="ghost" size="sm" asChild>
-                                  <Link href={ensureHttpProtocol(profile.git.blog)} target="_blank">
-                                    <Globe className="h-4 w-4" />
-                                  </Link>
-                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  render={(props) => (
+                                    <Link
+                                      href={ensureHttpProtocol(profile.git.blog!)}
+                                      target="_blank"
+                                      {...props}
+                                    >
+                                      <Globe className="size-4" />
+                                    </Link>
+                                  )}
+                                />
                               )}
                             </div>
                           </div>

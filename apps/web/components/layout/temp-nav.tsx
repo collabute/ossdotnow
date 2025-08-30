@@ -16,52 +16,66 @@ export function TempNav() {
         variant="ghost"
         size="icon"
         className="rounded-none text-neutral-400 hover:text-white"
-        asChild
-      >
-        <Link
-          href="https://l.oss.now/discord/"
-          target="_blank"
-          rel="noopener noreferrer"
-          event="discord_nav_click"
-        >
-          <Icons.discord className="size-4 fill-white sm:size-5" />
-        </Link>
-      </Button>
-      <Button variant="ghost" size="icon" className="rounded-none" asChild>
-        <Link
-          href="https://l.oss.now/discord/"
-          target="_blank"
-          rel="noopener noreferrer"
-          event="discord_nav_click"
-        >
-          <Icons.discord className="size-4 fill-white sm:size-5" />
-        </Link>
-      </Button>
-      <Button variant="ghost" size="icon" className="rounded-none" asChild>
-        <Link
-          href="https://l.oss.now/gh/"
-          target="_blank"
-          rel="noopener noreferrer"
-          event="github_nav_click"
-        >
-          <Icons.github className="size-4 sm:size-5" />
-        </Link>
-      </Button>
+        render={(props) => (
+          <Link
+            href="https://l.oss.now/discord/"
+            target="_blank"
+            rel="noopener noreferrer"
+            event="discord_nav_click"
+            {...props}
+          >
+            <Icons.discord className="size-4 fill-white sm:size-5" />
+          </Link>
+        )}
+      />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="rounded-none"
+        render={(props) => (
+          <Link
+            href="https://l.oss.now/discord/"
+            target="_blank"
+            rel="noopener noreferrer"
+            event="discord_nav_click"
+            {...props}
+          >
+            <Icons.discord className="size-4 fill-white sm:size-5" />
+          </Link>
+        )}
+      />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="rounded-none"
+        render={(props) => (
+          <Link
+            href="https://l.oss.now/gh/"
+            target="_blank"
+            rel="noopener noreferrer"
+            event="github_nav_click"
+            {...props}
+          >
+            <Icons.github className="size-4 sm:size-5" />
+          </Link>
+        )}
+      />
       <Button
         variant="ghost"
         size="icon"
         className="rounded-none text-neutral-400 hover:text-white"
-        asChild
-      >
-        <Link
-          href="https://l.oss.now/x/"
-          target="_blank"
-          rel="noopener noreferrer"
-          event="twitter_nav_click"
-        >
-          <Icons.twitter className="size-4 sm:size-5" />
-        </Link>
-      </Button>
+        render={(props) => (
+          <Link
+            href="https://l.oss.now/x/"
+            target="_blank"
+            rel="noopener noreferrer"
+            event="twitter_nav_click"
+            {...props}
+          >
+            <Icons.twitter className="size-4 sm:size-5" />
+          </Link>
+        )}
+      />
     </>
   );
 }

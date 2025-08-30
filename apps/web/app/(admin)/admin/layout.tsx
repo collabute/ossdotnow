@@ -43,12 +43,16 @@ export default async function Layout({ children }: { children: React.ReactNode }
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/">
-                <Home className="mr-2 h-4 w-4" />
-                Home
-              </Link>
-            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              render={(props) => (
+                <Link href="/" {...props}>
+                  <Home className="mr-2 h-4 w-4" />
+                  Home
+                </Link>
+              )}
+            />
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>

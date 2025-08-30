@@ -16,5 +16,8 @@
     "hooks": "@workspace/ui/hooks",
     "lib": "@workspace/ui/lib",
     "ui": "@workspace/ui/components"
+  },
+  "registries": {
+    "@9ui": "https://9ui.dev/r/{name}.json"
   }
 }

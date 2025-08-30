@@ -600,32 +600,42 @@ function UserPullRequests({ profile }: { profile: Profile }) {
                               </>
                             )}
                           </div>
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link
-                              href={pr.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label="Open pull request in a new tab"
-                              title="Open pull request in a new tab"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Link>
-                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            render={(props) => (
+                              <Link
+                                href={pr.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Open pull request in a new tab"
+                                title="Open pull request in a new tab"
+                                {...props}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Link>
+                            )}
+                          />
                         </div>
                       )}
                       {!pr.headRefName && (
                         <div className="mt-2 flex justify-end">
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link
-                              href={pr.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label="Open pull request in a new tab"
-                              title="Open pull request in a new tab"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Link>
-                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            render={(props) => (
+                              <Link
+                                href={pr.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Open pull request in a new tab"
+                                title="Open pull request in a new tab"
+                                {...props}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Link>
+                            )}
+                          />
                         </div>
                       )}
                     </div>

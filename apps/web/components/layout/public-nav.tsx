@@ -25,18 +25,22 @@ export default function PublicNav({ session }: { session: any }) {
       <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2">
         {navItems.map((item) => (
           <React.Fragment key={item.href}>
-            <Button variant="ghost" asChild>
-              <Link
-                href={item.href}
-                event={`${item.label.toLowerCase()}_nav_click`}
-                className={cn(
-                  'text-muted-foreground rounded-none p-2 text-sm hover:bg-neutral-900',
-                  isActive(item.href) && 'text-primary bg-neutral-900',
-                )}
-              >
-                {item.label}
-              </Link>
-            </Button>
+            <Button
+              variant="ghost"
+              render={(props) => (
+                <Link
+                  {...props}
+                  href={item.href}
+                  event={`${item.label.toLowerCase()}_nav_click`}
+                  className={cn(
+                    'text-muted-foreground rounded-none p-2 text-sm hover:bg-neutral-900',
+                    isActive(item.href) && 'text-primary bg-neutral-900',
+                  )}
+                >
+                  {item.label}
+                </Link>
+              )}
+            />
           </React.Fragment>
         ))}
       </div>
@@ -49,12 +53,12 @@ export default function PublicNav({ session }: { session: any }) {
       ) : (
         <Button
           className="rounded-none border border-neutral-800 bg-transparent px-4 py-2 text-sm text-white hover:border-neutral-700 hover:bg-neutral-900"
-          asChild
-        >
-          <Link href="/login" event="login_nav_click">
-            Login
-          </Link>
-        </Button>
+          render={(props) => (
+            <Link href="/login" event="login_nav_click" {...props}>
+              Login
+            </Link>
+          )}
+        />
       )}
       <SubmissionDialog />
     </>

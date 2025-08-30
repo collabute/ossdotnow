@@ -66,21 +66,30 @@ export function ClaimProjectDialog({
   if (!claimStatus?.canClaim) {
     if (claimStatus?.needsAuth) {
       return (
-        <Button variant="default" size="sm" className="gap-2 rounded-none" asChild>
-          <Link href="/login" event="claim_project_dialog_connect_github_button_clicked">
-            {provider === 'github' ? (
-              <>
-                <Icons.github className="h-4 w-4" />
-                Connect GitHub to Claim
-              </>
-            ) : (
-              <>
-                <Icons.gitlab className="h-4 w-4" />
-                Connect GitLab to Claim
-              </>
-            )}
-          </Link>
-        </Button>
+        <Button
+          variant="default"
+          size="sm"
+          className="gap-2 rounded-none"
+          render={(props) => (
+            <Link
+              href="/login"
+              event="claim_project_dialog_connect_github_button_clicked"
+              {...props}
+            >
+              {provider === 'github' ? (
+                <>
+                  <Icons.github className="h-4 w-4" />
+                  Connect GitHub to Claim
+                </>
+              ) : (
+                <>
+                  <Icons.gitlab className="h-4 w-4" />
+                  Connect GitLab to Claim
+                </>
+              )}
+            </Link>
+          )}
+        />
       );
     }
     return (
