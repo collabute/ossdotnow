@@ -75,7 +75,7 @@ export default function CommentActions({
           variant="ghost"
           size="sm"
           onClick={handleReplyClick}
-          className="h-auto p-0 text-neutral-400 hover:text-white transition-colors focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-900"
+          className="h-auto p-0 text-neutral-400 hover:text-white transition-colors focus:outline-none focus:ring-0"
           aria-label={`Reply to ${commentUserName || 'this comment'}`}
         >
           <Reply className="h-3 w-3 mr-1" />
@@ -88,7 +88,7 @@ export default function CommentActions({
           variant="ghost"
           size="sm"
           onClick={onToggleCollapse}
-          className="h-auto p-0 text-neutral-400 hover:text-white transition-colors focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 focus:ring-offset-neutral-900"
+          className="h-auto p-0 text-neutral-400 hover:text-white transition-colors focus:outline-none focus:ring-0"
           aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${totalReplyCount} replies`}
           aria-expanded={!isCollapsed}
         >

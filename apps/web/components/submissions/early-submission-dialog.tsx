@@ -30,7 +30,11 @@ export default function EarlySubmissionDialog() {
           <ArrowRight className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-none">
+      <DialogContent
+        className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-none"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Early Submission</DialogTitle>
           <DialogDescription>Submit your open source project for early access.</DialogDescription>

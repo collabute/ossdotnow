@@ -1,10 +1,4 @@
 import {
-  categoryProjectTypes,
-  categoryProjectStatuses,
-  categoryTags,
-  projectTagRelations,
-} from '@workspace/db/schema';
-import {
   project,
   projectLaunch,
   projectVote,
@@ -13,19 +7,61 @@ import {
   projectReport,
   user,
 } from '@workspace/db/schema';
+import {
+  categoryProjectTypes,
+  categoryProjectStatuses,
+  categoryTags,
+  projectTagRelations,
+} from '@workspace/db/schema';
 import { createTRPCRouter, publicProcedure, protectedProcedure } from '../trpc';
 import { eq, desc, and, sql, gte, lt, lte, inArray } from 'drizzle-orm';
+import { moderateComment } from '../utils/content-moderation';
+import { createNotification } from '@workspace/db/services';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
-import { moderateComment } from '../utils/content-moderation';
 
 async function updateScheduledLaunchesToLive(db: typeof import('@workspace/db').db) {
   const now = new Date();
-  await db
+
+  const updatedLaunches = await db
     .update(projectLaunch)
     .set({ status: 'live' })
-    .where(and(eq(projectLaunch.status, 'scheduled'), lte(projectLaunch.launchDate, now)));
+    .from(project)
+    .where(
+      and(
+        eq(projectLaunch.status, 'scheduled'),
+        lte(projectLaunch.launchDate, now),
+        eq(projectLaunch.projectId, project.id),
+      ),
+    )
+    .returning({
+      launchId: projectLaunch.id,
+      projectId: projectLaunch.projectId,
+      projectName: project.name,
+      projectOwnerId: project.ownerId,
+    });
+
+  // Send notifications for each updated launch
+  for (const launch of updatedLaunches) {
+    if (launch.projectOwnerId) {
+      try {
+        await createNotification({
+          userId: launch.projectOwnerId,
+          type: 'launch_live',
+          title: `"${launch.projectName}" is now live!`,
+          message: `Your scheduled launch has gone live. Check out your launch page!`,
+          data: {
+            projectId: launch.projectId,
+            launchId: launch.launchId,
+          },
+        });
+      } catch (error) {
+        // Log error
+        console.error(`Failed to send notification for launch ${launch.launchId}:`, error);
+      }
+    }
+  }
 }
 
 export const launchesRouter = createTRPCRouter({
@@ -879,16 +915,20 @@ export const launchesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Moderate the comment content using PurgoMalum API
+      // Content moderation check
       const { isClean } = await moderateComment(input.content);
-
-      // If inappropriate content is found, throw an error to show toast
       if (!isClean) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Inappropriate content detected. Please review your comment and try again.',
         });
       }
+
+      // Get project details for notification
+      const projectData = await ctx.db.query.project.findFirst({
+        where: eq(project.id, input.projectId),
+        columns: { ownerId: true, name: true },
+      });
 
       const [comment] = await ctx.db
         .insert(projectComment)
@@ -899,6 +939,33 @@ export const launchesRouter = createTRPCRouter({
           parentId: input.parentId,
         })
         .returning();
+
+      if (!comment) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to create comment',
+        });
+      }
+
+      // Create notification for project owner
+      if (projectData?.ownerId) {
+        try {
+          await createNotification({
+            userId: projectData.ownerId,
+            type: 'comment_received',
+            title: `New comment on "${projectData.name}"`,
+            message:
+              input.content.length > 100 ? input.content.substring(0, 100) + '...' : input.content,
+            data: {
+              projectId: input.projectId,
+              commentId: comment.id,
+            },
+          });
+        } catch (error) {
+          console.error('Failed to create comment notification:', error);
+          // Don't throw error to avoid breaking comment creation
+        }
+      }
 
       return comment;
     }),
@@ -925,33 +992,39 @@ export const launchesRouter = createTRPCRouter({
         .orderBy(desc(projectComment.createdAt));
 
       // Get like counts for all comments
-      const commentIds = comments.map(c => c.id);
-      const likeCounts = commentIds.length > 0 ? await ctx.db
-        .select({
-          commentId: projectCommentLike.commentId,
-          likeCount: sql<number>`count(*)::int`.as('likeCount'),
-        })
-        .from(projectCommentLike)
-        .where(inArray(projectCommentLike.commentId, commentIds))
-        .groupBy(projectCommentLike.commentId) : [];
+      const commentIds = comments.map((c) => c.id);
+      const likeCounts =
+        commentIds.length > 0
+          ? await ctx.db
+              .select({
+                commentId: projectCommentLike.commentId,
+                likeCount: sql<number>`count(*)::int`.as('likeCount'),
+              })
+              .from(projectCommentLike)
+              .where(inArray(projectCommentLike.commentId, commentIds))
+              .groupBy(projectCommentLike.commentId)
+          : [];
 
       // Get user's likes if authenticated
-      const userLikes = ctx.session?.userId && commentIds.length > 0 ? await ctx.db
-        .select({
-          commentId: projectCommentLike.commentId,
-        })
-        .from(projectCommentLike)
-        .where(
-          and(
-            eq(projectCommentLike.userId, ctx.session.userId),
-            inArray(projectCommentLike.commentId, commentIds)
-          )
-        ) : [];
+      const userLikes =
+        ctx.session?.userId && commentIds.length > 0
+          ? await ctx.db
+              .select({
+                commentId: projectCommentLike.commentId,
+              })
+              .from(projectCommentLike)
+              .where(
+                and(
+                  eq(projectCommentLike.userId, ctx.session.userId),
+                  inArray(projectCommentLike.commentId, commentIds),
+                ),
+              )
+          : [];
 
       // Combine comments with like data
-      const commentsWithLikes = comments.map(comment => {
-        const likeData = likeCounts.find(lc => lc.commentId === comment.id);
-        const isLiked = userLikes.some(ul => ul.commentId === comment.id);
+      const commentsWithLikes = comments.map((comment) => {
+        const likeData = likeCounts.find((lc) => lc.commentId === comment.id);
+        const isLiked = userLikes.some((ul) => ul.commentId === comment.id);
 
         return {
           ...comment,
@@ -1111,6 +1184,48 @@ export const launchesRouter = createTRPCRouter({
           status: status,
         })
         .returning();
+
+      if (!launch) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to create launch',
+        });
+      }
+
+      // Create notifications based on launch status
+      try {
+        if (status === 'scheduled') {
+          await createNotification({
+            userId: foundProject.ownerId!,
+            type: 'launch_scheduled',
+            title: `"${foundProject.name}" launch scheduled`,
+            message: `Your project launch is scheduled for ${finalLaunchDate.toLocaleDateString()} at ${finalLaunchDate.toLocaleTimeString()}`,
+            data: {
+              projectId: input.projectId,
+              launchId: launch.id,
+            },
+          });
+        } else if (status === 'live') {
+          await createNotification({
+            userId: foundProject.ownerId!,
+            type: 'launch_live',
+            title: `"${foundProject.name}" is now live!`,
+            message: `Your project has been launched successfully. Check out your launch page!`,
+            data: {
+              projectId: input.projectId,
+              launchId: launch.id,
+            },
+          });
+        }
+      } catch (error) {
+        // Log error but don't let notification failure affect the successful launch creation
+        console.error(`Failed to send ${status} notification for launch:`, {
+          projectId: input.projectId,
+          launchId: launch.id,
+          notificationType: status === 'scheduled' ? 'launch_scheduled' : 'launch_live',
+          error,
+        });
+      }
 
       return launch;
     }),

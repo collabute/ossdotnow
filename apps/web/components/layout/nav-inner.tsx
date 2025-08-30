@@ -9,6 +9,7 @@ import { navItems } from '@/lib/nav-items';
 import { MobileNav } from './mobile-nav';
 import PublicNav from './public-nav';
 import { ScheduledLaunchesModal } from './scheduled-launches-dropdown';
+import { NotificationsDropdown } from './notifications-dropdown';
 import UserNav from './user-nav';
 import { useState } from 'react';
 
@@ -52,6 +53,7 @@ export function NavInner({ session }: { session: any }) {
             {session?.user.id ? (
               <>
                 <ScheduledLaunchesModal />
+                <NotificationsDropdown />
                 <UserNav />
               </>
             ) : (

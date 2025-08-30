@@ -12,3 +12,4 @@ export * from './project-comments';
 export * from './project-comment-likes';
 export * from './project-claims';
 export * from './project-reports';
+export * from './notifications';

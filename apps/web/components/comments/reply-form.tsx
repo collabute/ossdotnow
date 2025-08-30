@@ -130,7 +130,7 @@ export default function ReplyForm({
                 <FormControl>
                   <Textarea
                     placeholder={placeholder}
-                    className="resize-none rounded-none border-neutral-700 bg-neutral-800/50 text-neutral-200 placeholder:text-neutral-500 text-sm focus:border-neutral-600 transition-colors"
+                    className="resize-none rounded-none border-neutral-700 bg-neutral-800/50 text-neutral-200 placeholder:text-neutral-500 text-sm focus:border-neutral-600 focus-visible:ring-0 transition-colors"
                     rows={parentId ? 3 : 4}
                     {...field}
                     ref={(e) => {

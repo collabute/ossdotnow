@@ -159,29 +159,15 @@
     {
       "idx": 22,
       "version": "7",
-      "when": 1755320693555,
-      "tag": "0022_green_rattler",
+      "when": 1756062828591,
+      "tag": "0022_premium_zaladane",
       "breakpoints": true
     },
     {
       "idx": 23,
       "version": "7",
-      "when": 1755365376297,
-      "tag": "0023_spotty_sharon_carter",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1755967252017,
-      "tag": "0024_free_khan",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1755968025000,
-      "tag": "0025_add_repo_id_index",
+      "when": 1756063027028,
+      "tag": "0023_real_wither",
       "breakpoints": true
     }
   ]

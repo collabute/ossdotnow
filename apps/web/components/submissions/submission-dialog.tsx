@@ -44,7 +44,11 @@ export default function SubmissionDialog({ quickSubmit }: SubmissionDialogProps)
           Submit Project
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-none">
+      <DialogContent
+        className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-none"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Submit Project</DialogTitle>
           <DialogDescription>Submit an open source project.</DialogDescription>
