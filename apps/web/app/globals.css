@@ -2,3 +2,33 @@
 
 @import 'uploadthing/tw/v4';
 @source "../node_modules/@uploadthing/react/dist";
+/*
+@keyframes float {
+  0% {
+    transform: translateY(0px) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-8px) scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-16px) scale(0.6);
+    opacity: 0.6;
+  }
+} */
+
+@keyframes floatUp {
+  0% {
+    transform: translateX(-50%) translateY(0px) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(-50%) translateY(-40px) scale(0.5);
+    opacity: 0;
+  }
+}
