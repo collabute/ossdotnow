@@ -22,6 +22,7 @@ export const project = pgTable(
     logoUrl: text('logo_url'),
     gitRepoUrl: text('git_repo_url').unique().notNull(),
     gitHost: gitHostEnum('git_host'),
+    repoId: text("repo_id").notNull(),
     name: text('name').notNull(),
     description: text('description'),
     socialLinks: jsonb('social_links').$type<{

@@ -1,6 +1,6 @@
 import { categoryProjectTypes, categoryProjectStatuses, categoryTags } from '@workspace/db/schema';
-import { eq, inArray } from 'drizzle-orm';
-import { project } from '@workspace/db/schema';
+import { project, projectLaunch } from '@workspace/db/schema';
+import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { type DB } from '@workspace/db';
 export const APPROVAL_STATUS = {
@@ -57,34 +57,81 @@ export async function resolveTagIds(db: DB, tagNames: string[]) {
 
   return tags.map((tag) => tag.id);
 }
-export async function checkProjectDuplicate(db: DB, gitRepoUrl: string) {
-  const existingProject = await db.query.project.findFirst({
-    where: eq(project.gitRepoUrl, gitRepoUrl),
+export async function checkProjectDuplicate(db: DB, gitRepoUrl: string, repoId?: string) {
+  // First priority: Check by repoId if available (most reliable)
+  if (repoId) {
+    const existingProjectByRepoId = await db.query.project.findFirst({
+      where: and(
+        eq(project.repoId, repoId),
+        isNull(project.deletedAt), // Only check non-deleted projects
+      ),
+      columns: {
+        id: true,
+        name: true,
+        approvalStatus: true,
+        repoId: true,
+        gitRepoUrl: true,
+      },
+    });
+
+    if (existingProjectByRepoId) {
+      const statusMessage =
+        existingProjectByRepoId.approvalStatus === APPROVAL_STATUS.APPROVED
+          ? 'approved and is already listed'
+          : existingProjectByRepoId.approvalStatus === APPROVAL_STATUS.PENDING
+            ? 'pending review'
+            : 'been submitted but was rejected';
+
+      return {
+        exists: true,
+        projectName: existingProjectByRepoId.name,
+        statusMessage,
+        approvalStatus: existingProjectByRepoId.approvalStatus,
+      };
+    }
+  }
+
+  // Second priority: Check by URL (for backwards compatibility with old entries without repoId)
+  const existingProjectByUrl = await db.query.project.findFirst({
+    where: and(
+      eq(project.gitRepoUrl, gitRepoUrl),
+      isNull(project.deletedAt), // Only check non-deleted projects
+    ),
     columns: {
       id: true,
       name: true,
       approvalStatus: true,
+      repoId: true,
+      gitRepoUrl: true,
     },
   });
 
-  if (!existingProject) {
+  if (!existingProjectByUrl) {
+    return { exists: false };
+  }
+
+  // If we found by URL but have a repoId, check if it's actually the same repo
+  if (repoId && existingProjectByUrl.repoId && existingProjectByUrl.repoId !== repoId) {
+    // Different repoId means it's a different repo (even with same URL)
+    // This handles the case where someone deleted a repo and created a new one with the same name
     return { exists: false };
   }
 
   const statusMessage =
-    existingProject.approvalStatus === APPROVAL_STATUS.APPROVED
+    existingProjectByUrl.approvalStatus === APPROVAL_STATUS.APPROVED
       ? 'approved and is already listed'
-      : existingProject.approvalStatus === APPROVAL_STATUS.PENDING
+      : existingProjectByUrl.approvalStatus === APPROVAL_STATUS.PENDING
         ? 'pending review'
         : 'been submitted but was rejected';
 
   return {
     exists: true,
-    projectName: existingProject.name,
+    projectName: existingProjectByUrl.name,
     statusMessage,
-    approvalStatus: existingProject.approvalStatus,
+    approvalStatus: existingProjectByUrl.approvalStatus,
   };
 }
+
 export async function resolveAllIds(
   db: DB,
   input: { status: string; type: string; tags: string[] },

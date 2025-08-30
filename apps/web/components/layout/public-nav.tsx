@@ -1,6 +1,7 @@
 'use client';
 
 import { ScheduledLaunchesModal } from './scheduled-launches-dropdown';
+import { NotificationsDropdown } from './notifications-dropdown';
 import SubmissionDialog from '../submissions/submission-dialog';
 import { Button } from '@workspace/ui/components/button';
 import Link from '@workspace/ui/components/link';
@@ -42,6 +43,7 @@ export default function PublicNav({ session }: { session: any }) {
       {session?.user.id ? (
         <>
           <ScheduledLaunchesModal />
+          <NotificationsDropdown />
           <UserNav />
         </>
       ) : (

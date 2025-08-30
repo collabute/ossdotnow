@@ -7,12 +7,7 @@ import { authClient } from '@workspace/auth/client';
 import { Flag, Share2 } from 'lucide-react';
 import { useTRPC } from '@/hooks/use-trpc';
 import { toast } from 'sonner';
-
-const isValidProvider = (
-  provider: string | null | undefined,
-): provider is (typeof projectProviderEnum.enumValues)[number] => {
-  return provider === 'github' || provider === 'gitlab';
-};
+import {isValidProvider} from '@/lib/constants'
 
 interface LaunchHeaderProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,32 +1,224 @@
 import {
+  project,
+  projectLaunch,
+  projectVote,
+  projectComment,
+  projectCommentLike,
+  projectReport,
+  user,
+} from '@workspace/db/schema';
+import {
   categoryProjectTypes,
   categoryProjectStatuses,
   categoryTags,
   projectTagRelations,
 } from '@workspace/db/schema';
-import {
-  project,
-  projectLaunch,
-  projectVote,
-  projectComment,
-  projectReport,
-  user,
-} from '@workspace/db/schema';
 import { createTRPCRouter, publicProcedure, protectedProcedure } from '../trpc';
 import { eq, desc, and, sql, gte, lt, lte, inArray } from 'drizzle-orm';
+import { moderateComment } from '../utils/content-moderation';
+import { createNotification } from '@workspace/db/services';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod/v4';
 
 async function updateScheduledLaunchesToLive(db: typeof import('@workspace/db').db) {
   const now = new Date();
-  await db
+
+  const updatedLaunches = await db
     .update(projectLaunch)
     .set({ status: 'live' })
-    .where(and(eq(projectLaunch.status, 'scheduled'), lte(projectLaunch.launchDate, now)));
+    .from(project)
+    .where(
+      and(
+        eq(projectLaunch.status, 'scheduled'),
+        lte(projectLaunch.launchDate, now),
+        eq(projectLaunch.projectId, project.id),
+      ),
+    )
+    .returning({
+      launchId: projectLaunch.id,
+      projectId: projectLaunch.projectId,
+      projectName: project.name,
+      projectOwnerId: project.ownerId,
+    });
+
+  // Send notifications for each updated launch
+  for (const launch of updatedLaunches) {
+    if (launch.projectOwnerId) {
+      try {
+        await createNotification({
+          userId: launch.projectOwnerId,
+          type: 'launch_live',
+          title: `"${launch.projectName}" is now live!`,
+          message: `Your scheduled launch has gone live. Check out your launch page!`,
+          data: {
+            projectId: launch.projectId,
+            launchId: launch.launchId,
+          },
+        });
+      } catch (error) {
+        // Log error
+        console.error(`Failed to send notification for launch ${launch.launchId}:`, error);
+      }
+    }
+  }
 }
 
 export const launchesRouter = createTRPCRouter({
+  updateLaunchDescription: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        detailedDescription: z.string().min(25).max(1000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const foundProject = await ctx.db.query.project.findFirst({
+        where: eq(project.id, input.projectId),
+      });
+
+      if (!foundProject) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
+      }
+
+      if (foundProject.ownerId !== ctx.session.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'You can only edit your own launches',
+        });
+      }
+
+      const existingLaunch = await ctx.db.query.projectLaunch.findFirst({
+        where: eq(projectLaunch.projectId, input.projectId),
+      });
+
+      if (!existingLaunch) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Launch not found for this project',
+        });
+      }
+
+      if (existingLaunch.status === 'ended') {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Cannot edit an ended launch',
+        });
+      }
+
+      await ctx.db
+        .update(projectLaunch)
+        .set({ detailedDescription: input.detailedDescription })
+        .where(and(eq(projectLaunch.projectId, input.projectId), eq(projectLaunch.status, 'live')));
+
+      return { success: true };
+    }),
+
+  updateScheduledLaunchDetails: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        tagline: z.string().min(10).max(100),
+        detailedDescription: z.string().min(25).max(1000),
+        launchDate: z.coerce.date().optional(),
+        launchTime: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const foundProject = await ctx.db.query.project.findFirst({
+        where: eq(project.id, input.projectId),
+      });
+
+      if (!foundProject) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
+      }
+
+      if (foundProject.ownerId !== ctx.session.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'You can only edit your own launches',
+        });
+      }
+
+      const existingLaunch = await ctx.db.query.projectLaunch.findFirst({
+        where: eq(projectLaunch.projectId, input.projectId),
+      });
+
+      if (!existingLaunch) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Launch not found for this project',
+        });
+      }
+
+      if (existingLaunch.status !== 'scheduled') {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Only scheduled launches can edit tagline and description',
+        });
+      }
+
+      // Handle optional time update
+      let updatedLaunchDate: Date | undefined = input.launchDate
+        ? new Date(input.launchDate)
+        : undefined;
+
+      if (input.launchTime) {
+        const timeRegex = /^([0-9]{1,2}):([0-9]{2})$/;
+        const match = input.launchTime.match(timeRegex);
+        if (!match) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid time format. Please use HH:MM format (e.g., 14:30 or 9:05)',
+          });
+        }
+        const hours = parseInt(match[1]!, 10);
+        const minutes = parseInt(match[2]!, 10);
+        if (hours < 0 || hours > 23) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid hour value. Hours must be between 0 and 23',
+          });
+        }
+        if (minutes < 0 || minutes > 59) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid minute value. Minutes must be between 0 and 59',
+          });
+        }
+        if (!updatedLaunchDate) {
+          updatedLaunchDate = new Date(existingLaunch.launchDate);
+        }
+        updatedLaunchDate.setHours(hours, minutes, 0, 0);
+      }
+
+      if (updatedLaunchDate) {
+        const now = new Date();
+        if (updatedLaunchDate.getTime() <= now.getTime()) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Launch date cannot be in the past',
+          });
+        }
+      }
+
+      const updateData: Record<string, unknown> = {
+        tagline: input.tagline,
+        detailedDescription: input.detailedDescription,
+      };
+      if (updatedLaunchDate) {
+        updateData.launchDate = updatedLaunchDate;
+      }
+
+      await ctx.db
+        .update(projectLaunch)
+        .set(updateData)
+        .where(
+          and(eq(projectLaunch.projectId, input.projectId), eq(projectLaunch.status, 'scheduled')),
+        );
+
+      return { success: true };
+    }),
   getLaunchByProjectId: publicProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -723,6 +915,21 @@ export const launchesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Content moderation check
+      const { isClean } = await moderateComment(input.content);
+      if (!isClean) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Inappropriate content detected. Please review your comment and try again.',
+        });
+      }
+
+      // Get project details for notification
+      const projectData = await ctx.db.query.project.findFirst({
+        where: eq(project.id, input.projectId),
+        columns: { ownerId: true, name: true },
+      });
+
       const [comment] = await ctx.db
         .insert(projectComment)
         .values({
@@ -732,6 +939,33 @@ export const launchesRouter = createTRPCRouter({
           parentId: input.parentId,
         })
         .returning();
+
+      if (!comment) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to create comment',
+        });
+      }
+
+      // Create notification for project owner
+      if (projectData?.ownerId) {
+        try {
+          await createNotification({
+            userId: projectData.ownerId,
+            type: 'comment_received',
+            title: `New comment on "${projectData.name}"`,
+            message:
+              input.content.length > 100 ? input.content.substring(0, 100) + '...' : input.content,
+            data: {
+              projectId: input.projectId,
+              commentId: comment.id,
+            },
+          });
+        } catch (error) {
+          console.error('Failed to create comment notification:', error);
+          // Don't throw error to avoid breaking comment creation
+        }
+      }
 
       return comment;
     }),
@@ -757,7 +991,87 @@ export const launchesRouter = createTRPCRouter({
         .where(eq(projectComment.projectId, input.projectId))
         .orderBy(desc(projectComment.createdAt));
 
-      return comments;
+      // Get like counts for all comments
+      const commentIds = comments.map((c) => c.id);
+      const likeCounts =
+        commentIds.length > 0
+          ? await ctx.db
+              .select({
+                commentId: projectCommentLike.commentId,
+                likeCount: sql<number>`count(*)::int`.as('likeCount'),
+              })
+              .from(projectCommentLike)
+              .where(inArray(projectCommentLike.commentId, commentIds))
+              .groupBy(projectCommentLike.commentId)
+          : [];
+
+      // Get user's likes if authenticated
+      const userLikes =
+        ctx.session?.userId && commentIds.length > 0
+          ? await ctx.db
+              .select({
+                commentId: projectCommentLike.commentId,
+              })
+              .from(projectCommentLike)
+              .where(
+                and(
+                  eq(projectCommentLike.userId, ctx.session.userId),
+                  inArray(projectCommentLike.commentId, commentIds),
+                ),
+              )
+          : [];
+
+      // Combine comments with like data
+      const commentsWithLikes = comments.map((comment) => {
+        const likeData = likeCounts.find((lc) => lc.commentId === comment.id);
+        const isLiked = userLikes.some((ul) => ul.commentId === comment.id);
+
+        return {
+          ...comment,
+          likeCount: likeData?.likeCount || 0,
+          isLiked: isLiked,
+        };
+      });
+
+      return commentsWithLikes;
+    }),
+
+  toggleCommentLike: protectedProcedure
+    .input(z.object({ commentId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Try to like first; if the row already exists, do nothing (idempotent)
+      const inserted = await ctx.db
+        .insert(projectCommentLike)
+        .values({
+          commentId: input.commentId,
+          userId: ctx.session.userId!,
+        })
+        .onConflictDoNothing({
+          target: [projectCommentLike.commentId, projectCommentLike.userId],
+        })
+        .returning();
+      // If nothing was inserted, the like already existed; toggle off by deleting it
+      if (inserted.length === 0) {
+        await ctx.db
+          .delete(projectCommentLike)
+          .where(
+            and(
+              eq(projectCommentLike.commentId, input.commentId),
+              eq(projectCommentLike.userId, ctx.session.userId!),
+            ),
+          );
+      }
+      // Get updated like count
+      const [likeCountResult] = await ctx.db
+        .select({
+          likeCount: sql<number>`count(*)::int`.as('likeCount'),
+        })
+        .from(projectCommentLike)
+        .where(eq(projectCommentLike.commentId, input.commentId));
+      return {
+        likeCount: likeCountResult?.likeCount || 0,
+        isLiked: inserted.length > 0,
+      };
     }),
 
   launchProject: protectedProcedure
@@ -870,6 +1184,48 @@ export const launchesRouter = createTRPCRouter({
           status: status,
         })
         .returning();
+
+      if (!launch) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to create launch',
+        });
+      }
+
+      // Create notifications based on launch status
+      try {
+        if (status === 'scheduled') {
+          await createNotification({
+            userId: foundProject.ownerId!,
+            type: 'launch_scheduled',
+            title: `"${foundProject.name}" launch scheduled`,
+            message: `Your project launch is scheduled for ${finalLaunchDate.toLocaleDateString()} at ${finalLaunchDate.toLocaleTimeString()}`,
+            data: {
+              projectId: input.projectId,
+              launchId: launch.id,
+            },
+          });
+        } else if (status === 'live') {
+          await createNotification({
+            userId: foundProject.ownerId!,
+            type: 'launch_live',
+            title: `"${foundProject.name}" is now live!`,
+            message: `Your project has been launched successfully. Check out your launch page!`,
+            data: {
+              projectId: input.projectId,
+              launchId: launch.id,
+            },
+          });
+        }
+      } catch (error) {
+        // Log error but don't let notification failure affect the successful launch creation
+        console.error(`Failed to send ${status} notification for launch:`, {
+          projectId: input.projectId,
+          launchId: launch.id,
+          notificationType: status === 'scheduled' ? 'launch_scheduled' : 'launch_live',
+          error,
+        });
+      }
 
       return launch;
     }),

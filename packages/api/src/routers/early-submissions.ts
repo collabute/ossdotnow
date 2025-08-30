@@ -27,17 +27,27 @@ const createProjectInput = createInsertSchema(project)
 
 export const earlySubmissionRouter = createTRPCRouter({
   checkDuplicateRepo: publicProcedure
-    .input(z.object({ gitRepoUrl: z.string() }))
+    .input(z.object({ gitRepoUrl: z.string(), gitHost: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      return await checkProjectDuplicate(ctx.db, input.gitRepoUrl);
+      let repoId: string | undefined;
+      if (input.gitHost) {
+        try {
+          const driver = await getActiveDriver(input.gitHost as 'github' | 'gitlab', ctx);
+          const repoData = await driver.getRepo(input.gitRepoUrl);
+          repoId = repoData.id?.toString();
+        } catch (error) {
+          console.warn('Could not fetch repo data for duplicate check:', error);
+        }
+      }
+      return await checkProjectDuplicate(ctx.db, input.gitRepoUrl, repoId);
     }),
+
   addProject: publicProcedure.input(createProjectInput).mutation(async ({ ctx, input }) => {
     const limiter = getRateLimiter('early-access-waitlist');
     if (limiter) {
       const ip = getIp(ctx.headers);
       const safeIp = ip || `anonymous-${Date.now()}-${Math.random().toString(36).substring(7)}`;
       const { success } = await limiter.limit(safeIp);
-
       if (!success) {
         throw new TRPCError({
           code: 'TOO_MANY_REQUESTS',
@@ -48,15 +58,30 @@ export const earlySubmissionRouter = createTRPCRouter({
 
     // Validate repository and get privacy status
     let isRepoPrivate = false;
+    let repoId: string | null = null;
     if (input.gitHost && input.gitRepoUrl) {
       try {
         const driver = await getActiveDriver(input.gitHost as 'github' | 'gitlab', ctx);
         const repoData = await driver.getRepo(input.gitRepoUrl);
         isRepoPrivate = repoData.isPrivate || false;
+        repoId = repoData.id?.toString() || null;
       } catch (error) {
         // If there's an error fetching the repo, we'll continue with the flow
         // This allows for cases where the repo might be temporarily unavailable
       }
+    }
+
+    // Check for duplicates BEFORE attempting insertion
+    const duplicateCheck = await checkProjectDuplicate(
+      ctx.db,
+      input.gitRepoUrl,
+      repoId || undefined,
+    );
+    if (duplicateCheck.exists) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: `This repository has already been submitted! The project "${duplicateCheck.projectName}" has ${duplicateCheck.statusMessage}. If you think this is an error, please contact support.`,
+      });
     }
 
     const { statusId, typeId, tagIds } = await resolveAllIds(ctx.db, {
@@ -66,6 +91,21 @@ export const earlySubmissionRouter = createTRPCRouter({
     });
 
     return await ctx.db.transaction(async (tx) => {
+      // Check if there's an existing project with the same URL that needs to be soft-deleted
+      const existingProject = await tx.query.project.findFirst({
+        where: eq(project.gitRepoUrl, input.gitRepoUrl),
+      });
+
+      if (existingProject) {
+        await tx
+          .update(project)
+          .set({
+            deletedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(project.id, existingProject.id));
+      }
+
       const [newProject] = await tx
         .insert(project)
         .values({
@@ -73,6 +113,7 @@ export const earlySubmissionRouter = createTRPCRouter({
           gitRepoUrl: input.gitRepoUrl,
           gitHost: input.gitHost,
           name: input.name,
+          repoId: repoId!,
           description: input.description,
           socialLinks: input.socialLinks,
           isLookingForContributors: input.isLookingForContributors,
@@ -87,29 +128,12 @@ export const earlySubmissionRouter = createTRPCRouter({
           typeId,
           isRepoPrivate,
         })
-        .onConflictDoNothing({ target: project.gitRepoUrl })
         .returning();
 
       if (!newProject) {
-        const existing = await tx
-          .select({
-            name: project.name,
-            approvalStatus: project.approvalStatus,
-          })
-          .from(project)
-          .where(eq(project.gitRepoUrl, input.gitRepoUrl))
-          .limit(1);
-
-        const statusMsg =
-          existing[0]?.approvalStatus === 'approved'
-            ? 'approved and is already listed'
-            : existing[0]?.approvalStatus === 'pending'
-              ? 'pending review'
-              : 'been submitted but was rejected';
-
         throw new TRPCError({
-          code: 'CONFLICT',
-          message: `This repository has already been submitted! The project "${existing[0]?.name}" has ${statusMsg}. If you think this is an error, please contact support.`,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to create project. Please try again.',
         });
       }
 
@@ -122,23 +146,21 @@ export const earlySubmissionRouter = createTRPCRouter({
       }
 
       const [totalCount] = await tx.select({ count: count() }).from(project);
-
       return {
         project: newProject,
         totalCount: totalCount?.count ?? 0,
       };
     });
   }),
+
   getEarlySubmissionsCount: publicProcedure.query(async ({ ctx }) => {
     const earlySubmissionsCount = await ctx.db.select({ count: count() }).from(project);
-
     if (!earlySubmissionsCount[0]) {
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to get waitlist count',
       });
     }
-
     return {
       count: earlySubmissionsCount[0].count,
     };

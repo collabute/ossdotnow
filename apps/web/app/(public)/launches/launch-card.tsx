@@ -13,12 +13,7 @@ import { formatDate } from '@/lib/utils';
 import { motion } from 'motion/react';
 import Image from 'next/image';
 import { toast } from 'sonner';
-
-const isValidProvider = (
-  provider: string | null,
-): provider is (typeof projectProviderEnum.enumValues)[number] => {
-  return provider === 'github' || provider === 'gitlab';
-};
+import {isValidProvider} from '@/lib/constants'
 
 const getRankBadge = (index: number) => {
   if (index === 0)

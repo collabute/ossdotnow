@@ -3,6 +3,7 @@ import { project, projectTagRelations, projectClaim } from '@workspace/db/schema
 import { createTRPCRouter, publicProcedure } from '../trpc';
 import { getRateLimiter } from '../utils/rate-limit';
 import { getActiveDriver } from '../driver/utils';
+import { invalidateCache } from '../utils/cache';
 import { createInsertSchema } from 'drizzle-zod';
 import { type Context } from '../driver/utils';
 import { user } from '@workspace/db/schema';
@@ -57,9 +58,20 @@ async function checkUserOwnsProject(ctx: Context, gitRepoUrl: string) {
 
 export const submissionRouter = createTRPCRouter({
   checkDuplicateRepo: publicProcedure
-    .input(z.object({ gitRepoUrl: z.string() }))
+    .input(z.object({ gitRepoUrl: z.string(), gitHost: z.string().optional(), }))
     .query(async ({ ctx, input }) => {
-      return await checkProjectDuplicate(ctx.db, input.gitRepoUrl);
+      // return await checkProjectDuplicate(ctx.db, input.gitRepoUrl);
+      let repoId: string | undefined;if (input.gitHost) {
+        try {
+          const driver = await getActiveDriver(input.gitHost as 'github' | 'gitlab', ctx);
+          const repoData = await driver.getRepo(input.gitRepoUrl);
+          repoId = repoData.id?.toString();
+        } catch (error) {
+          console.warn('Could not fetch repo data for duplicate check:', error);
+        }
+      }
+      
+      return await checkProjectDuplicate(ctx.db, input.gitRepoUrl, repoId);
     }),
   checkUserOwnsProject: publicProcedure
     .input(z.object({ gitRepoUrl: z.string() }))
@@ -83,16 +95,27 @@ export const submissionRouter = createTRPCRouter({
 
     // Validate repository and get privacy status
     let isRepoPrivate = false;
+    let repoId: string | null = null;
     if (input.gitHost && input.gitRepoUrl) {
       try {
         const driver = await getActiveDriver(input.gitHost as 'github' | 'gitlab', ctx);
         const repoData = await driver.getRepo(input.gitRepoUrl);
         isRepoPrivate = repoData.isPrivate || false;
+        repoId = repoData.id?.toString() || null;
       } catch (error) {
         // If there's an error fetching the repo, we'll continue with the flow
         // This allows for cases where the repo might be temporarily unavailable
       }
     }
+
+    const duplicateCheck = await checkProjectDuplicate(ctx.db, input.gitRepoUrl, repoId || undefined);
+    if (duplicateCheck.exists) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: `This repository has already been submitted! The project "${duplicateCheck.projectName}" has ${duplicateCheck.statusMessage}. If you think this is an error, please contact support.`,
+      });
+    }
+    
 
     const ownerCheck = await checkUserOwnsProject(ctx, input.gitRepoUrl);
     if (ownerCheck.error) {
@@ -110,6 +133,20 @@ export const submissionRouter = createTRPCRouter({
 
     // Wrap only the atomic database operations in a transaction
     return await ctx.db.transaction(async (tx) => {
+      const existingProject = await tx.query.project.findFirst({
+        where: eq(project.gitRepoUrl, input.gitRepoUrl),
+      });
+
+      if (existingProject) {
+        await tx
+          .update(project)
+          .set({
+            deletedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(project.id, existingProject.id));
+      }
+
       const [newProject] = await tx
         .insert(project)
         .values({
@@ -117,6 +154,7 @@ export const submissionRouter = createTRPCRouter({
           gitRepoUrl: input.gitRepoUrl,
           gitHost: input.gitHost,
           name: input.name,
+          repoId: repoId!,
           description: input.description,
           socialLinks: input.socialLinks,
           isLookingForContributors: input.isLookingForContributors,
@@ -178,6 +216,7 @@ export const submissionRouter = createTRPCRouter({
         });
       }
 
+      invalidateCache(`${input.gitHost as 'github' | 'gitlab'}:unsubmitted:${ownerCheck.owner}`);
       const [totalCount] = await tx.select({ count: count() }).from(project);
       return {
         count: totalCount?.count ?? 0,

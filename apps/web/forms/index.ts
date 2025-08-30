@@ -20,6 +20,7 @@ export const earlySubmissionForm = createInsertSchema(project)
     createdAt: true,
     updatedAt: true,
     deletedAt: true,
+    repoId: true,
   })
   .extend({
     name: z.string().min(1, 'Project name is required'),
@@ -52,6 +53,7 @@ export const submisionForm = createInsertSchema(project)
     createdAt: true,
     updatedAt: true,
     deletedAt: true,
+    repoId: true,
   })
   .extend({
     name: z.string().min(1, 'Project name is required'),

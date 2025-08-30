@@ -5,14 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/hooks/use-trpc';
 import { formatDate } from '@/lib/utils';
 import Image from 'next/image';
+import {isValidProvider} from '@/lib/constants'
 
 type Project = typeof projectSchema.$inferSelect;
-
-const isValidProvider = (
-  provider: string | null,
-): provider is (typeof projectProviderEnum.enumValues)[number] => {
-  return provider === 'github' || provider === 'gitlab';
-};
 
 export default function ProjectCard({
   project,
@@ -22,7 +17,7 @@ export default function ProjectCard({
   isOwnProfile?: boolean;
 }) {
   const trpc = useTRPC();
-  const { data: repo, isError } = useQuery({
+  const { data: repo, isError, isLoading } = useQuery({
     ...trpc.repository.getRepo.queryOptions({
       url: project.gitRepoUrl,
       provider: project.gitHost as (typeof projectProviderEnum.enumValues)[number],
@@ -30,8 +25,6 @@ export default function ProjectCard({
     enabled: !!project.gitRepoUrl && isValidProvider(project.gitHost),
     staleTime: 1000 * 60 * 60 * 24,
   });
-
-  if (isError || !repo) return null;
 
   return (
     <div className="group/project relative flex h-full flex-col bg-[#171717] p-1">
@@ -44,8 +37,9 @@ export default function ProjectCard({
       <span className="sr-only">View {project.name}</span>
       <div className="flex flex-1 grow flex-col gap-2 border border-[#404040] bg-[#262626] p-4">
         <div className="mb-3 flex items-center gap-3">
-          {(repo && repo?.owner && repo?.owner?.avatar_url) ||
-          (repo?.namespace && repo?.namespace?.avatar_url) ? (
+          {isLoading || isError || !repo ? (
+            <div className="h-[78px] w-[78px] animate-pulse bg-neutral-900" />
+          ) : (repo?.owner?.avatar_url || repo?.namespace?.avatar_url) ? (
             project.ownerId ? (
               <Link
                 href={`/profile/${project.ownerId}`}
@@ -115,17 +109,37 @@ export default function ProjectCard({
           <div className="flex items-center gap-1">
             <Icons.star className="h-3 w-3 text-yellow-600 md:h-3.5 md:w-3.5" />
             <span className="text-neutral-300">
-              {repo?.stargazers_count || repo?.star_count || 0}
+              {isLoading ? (
+                <span className="inline-block h-3 w-10 animate-pulse rounded bg-neutral-700"></span>
+              ) : isError || !repo ? (
+                project.starsCount ?? 0
+              ) : (
+                repo?.stargazers_count ?? repo?.star_count ?? project.starsCount ?? 0
+              )}
             </span>
           </div>
           <div className="flex items-center gap-1">
             <Icons.fork className="h-3 w-3 text-purple-600 md:h-3.5 md:w-3.5" />
-            <span className="text-neutral-300">{repo?.forks_count || 0}</span>
+            <span className="text-neutral-300">
+              {isLoading ? (
+                <span className="inline-block h-3 w-8 animate-pulse rounded bg-neutral-700"></span>
+              ) : isError || !repo ? (
+                project.forksCount ?? 0
+              ) : (
+                repo?.forks_count ?? project.forksCount ?? 0
+              )}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <Icons.clock className="h-3 w-3 text-neutral-500 md:h-3.5 md:w-3.5" />
             <span className="text-neutral-300">
-              {repo?.created_at ? formatDate(new Date(repo.created_at)) : 'N/A'}
+              {isLoading ? (
+                <span className="inline-block h-3 w-16 animate-pulse rounded bg-neutral-700"></span>
+              ) : isError || !repo ? (
+                formatDate(new Date(project.createdAt))
+              ) : (
+                repo?.created_at ? formatDate(new Date(repo.created_at)) : formatDate(new Date(project.createdAt))
+              )}
             </span>
           </div>
         </div>

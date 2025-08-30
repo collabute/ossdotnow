@@ -11,6 +11,7 @@ import {
   PullRequestData,
   ReadmeData,
   RepoData,
+  UnSubmittedRepo,
   UserData,
   UserPullRequestData,
 } from './types';
@@ -28,6 +29,64 @@ const MyOctokit = Octokit.plugin(restEndpointMethods);
 
 export class GithubManager implements GitManager {
   private octokit: InstanceType<typeof MyOctokit>;
+
+  async updateRepoIds(ctx: {
+    db: any;
+  }): Promise<{ updated: number; failed: number; skipped: number }> {
+    const result = { updated: 0, failed: 0, skipped: 0 };
+
+    try {
+      const projects = await ctx.db
+        .select()
+        .from(project)
+        .where(
+          and(
+            eq(project.gitHost, 'github'),
+          ),
+        );
+
+      if (projects.length === 0) {
+        return result;
+      }
+
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      for (const p of projects) {
+        try {
+          if (p.repoId && !isNaN(Number(p.repoId)) && p.repoId !== p.gitRepoUrl) {
+            result.skipped++;
+            continue;
+          }
+
+          const { owner, repo } = this.parseRepoIdentifier(p.gitRepoUrl);
+
+          const { data } = await this.octokit.rest.repos.get({ owner, repo });
+
+          if (data && typeof data.id !== 'undefined') {
+            const repoId = data.id.toString();
+
+            await ctx.db.update(project).set({ repoId }).where(eq(project.id, p.id));
+
+            console.log(`✓ Updated repo_id to ${repoId} for ${p.gitRepoUrl}`);
+            result.updated++;
+          } else {
+            console.error(`Missing ID in GitHub API response for ${p.gitRepoUrl}`);
+            result.failed++;
+          }
+
+          await sleep(1000);
+        } catch (error) {
+          console.error(`Error updating repo_id for ${p.gitRepoUrl}:`, error);
+          result.failed++;
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error in updateRepoIds:', error);
+      throw error;
+    }
+  }
 
   constructor(config: GitManagerConfig) {
     this.octokit = new MyOctokit({ auth: config.token });
@@ -945,5 +1004,82 @@ export class GithubManager implements GitManager {
       },
       { ttl: 4 * 60 * 60 },
     );
+  }
+
+  async getUnsubmittedRepos(
+    ctx: Context,
+    username: string,
+    userId: string,
+  ): Promise<UnSubmittedRepo[]> {
+    try {
+      return getCached(
+        createCacheKey('github', 'unsubmitted', username),
+        async () => {
+          try {
+            const allRepos = [];
+            let page = 1;
+            let hasMore = true;
+
+            while (hasMore) {
+              const { data } = await this.octokit.rest.repos.listForUser({
+                username,
+                per_page: 100,
+                page: page,
+                sort: 'updated',
+                direction: 'desc',
+              });
+
+              if (data.length === 0) {
+                hasMore = false;
+              } else {
+                allRepos.push(...data);
+                page++;
+                // Limit to prevent excessive API calls
+                if (allRepos.length >= 500) {
+                  break;
+                }
+              }
+            }
+            //already existing
+            const submittedRepos = await ctx.db.query.project.findMany({
+              where: (project, { eq }) => eq(project.ownerId, userId),
+            });
+            const notSubmitted = allRepos.filter((repo) => {
+              return !submittedRepos.some((submitted) => submitted.gitRepoUrl === repo.full_name);
+            });
+            return notSubmitted.map((repo) => {
+              return {
+                name: repo.name,
+                repoUrl: repo.full_name,
+                stars: repo.stargazers_count || 0,
+                forks: repo.forks_count || 0,
+                isOwner: repo.owner.login === username,
+                gitHost: 'github',
+                owner: {
+                  avatar_url: repo.owner?.avatar_url || '',
+                },
+                created_at: repo.created_at!,
+                description: repo.description,
+              };
+            });
+          } catch (error) {
+            console.error('Error fetching GitHub unsubmitted repos:', error);
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'Failed to retrieve unsubmitted repositories from GitHub',
+            });
+          }
+        },
+        { ttl: 5 * 60 },
+      );
+    } catch (error) {
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to fetch unsubmitted repos: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
   }
 }

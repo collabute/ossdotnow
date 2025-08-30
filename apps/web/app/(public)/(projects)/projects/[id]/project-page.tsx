@@ -33,12 +33,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from '@workspace/ui/components/link';
 import { useTRPC } from '@/hooks/use-trpc';
 import { formatDate } from '@/lib/utils';
-
-// Define types for repository data
-interface RepoContent {
-  content: string;
-  encoding: 'base64' | 'utf8';
-}
+import {isValidProvider, RepoContent} from '@/lib/constants'
 
 interface Label {
   id: string | number;
@@ -148,12 +143,6 @@ interface RepoData {
 //     };
 //   }>;
 // }
-
-const isValidProvider = (
-  provider: string | null | undefined,
-): provider is (typeof projectProviderEnum.enumValues)[number] => {
-  return provider === 'github' || provider === 'gitlab';
-};
 
 function useProject(id: string) {
   const trpc = useTRPC();

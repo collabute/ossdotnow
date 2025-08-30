@@ -53,6 +53,7 @@ export interface DatabaseProject {
   logoUrl: string | null;
   gitRepoUrl: string;
   gitHost: 'github' | 'gitlab' | null;
+  repoId: string;
   name: string;
   description: string | null;
   socialLinks: {
@@ -167,6 +168,7 @@ export function isDatabaseProject(data: unknown): data is DatabaseProject {
     (project.description === null || typeof project.description === 'string') &&
     typeof project.gitRepoUrl === 'string' &&
     (project.gitHost === null || project.gitHost === 'github' || project.gitHost === 'gitlab') &&
+    typeof project.repoId === 'string' &&
     (project.logoUrl === null || typeof project.logoUrl === 'string') &&
     typeof project.approvalStatus === 'string' &&
     typeof project.isLookingForContributors === 'boolean' &&

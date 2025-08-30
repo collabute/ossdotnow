@@ -9,6 +9,8 @@ export * from './categories';
 export * from './project-launches';
 export * from './project-votes';
 export * from './project-comments';
+export * from './project-comment-likes';
 export * from './project-claims';
 export * from './project-reports';
 export * from './contributions';
+export * from './notifications';

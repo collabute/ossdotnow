@@ -12,8 +12,9 @@ import {
   RepoData,
   UserData,
   UserPullRequestData,
+  UnSubmittedRepo,
 } from './types';
-import { project, projectClaim } from '@workspace/db/schema';
+import { account, project, projectClaim } from '@workspace/db/schema';
 import { getCached, createCacheKey } from '../utils/cache';
 import { eq, and, isNull } from 'drizzle-orm';
 import { Gitlab } from '@gitbeaker/rest';
@@ -30,6 +31,59 @@ export class GitlabManager implements GitManager {
       token: config.token,
       host: 'https://gitlab.com',
     });
+  }
+
+  async updateRepoIds(ctx: {
+    db: any;
+  }): Promise<{ updated: number; failed: number; skipped: number }> {
+    const result = { updated: 0, failed: 0, skipped: 0 };
+
+    try {
+      const projects = await ctx.db
+        .select()
+        .from(project)
+        .where(and(eq(project.gitHost, 'gitlab')));
+
+      if (projects.length === 0) {
+        return result;
+      }
+
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      for (const p of projects) {
+        try {
+          if (p.repoId && !isNaN(Number(p.repoId)) && p.repoId !== p.gitRepoUrl) {
+            result.skipped++;
+            continue;
+          }
+
+          // const encodedPath = encodeURIComponent(p.gitRepoUrl);
+          const response = await this.gitlab.Projects.show(p.gitRepoUrl);
+
+          if (response && typeof response.id !== 'undefined') {
+            const repoId = response.id.toString();
+
+            await ctx.db.update(project).set({ repoId }).where(eq(project.id, p.id));
+
+            console.log(`✓ Updated repo_id to ${repoId} for ${p.gitRepoUrl}`);
+            result.updated++;
+          } else {
+            console.error(`Missing ID in GitLab API response for ${p.gitRepoUrl}`);
+            result.failed++;
+          }
+
+          await sleep(1000);
+        } catch (error) {
+          console.error(`Error updating repo_id for ${p.gitRepoUrl}:`, error);
+          result.failed++;
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error in updateRepoIds:', error);
+      throw error;
+    }
   }
 
   private parseRepoIdentifier(identifier: string): { owner: string; repo: string } {
@@ -876,7 +930,8 @@ export class GitlabManager implements GitManager {
         try {
           const users = await this.gitlab.Users.all({ username });
           const user = users.find(
-            (u: any) => u.username === username || u.username.toLowerCase() === username.toLowerCase(),
+            (u: any) =>
+              u.username === username || u.username.toLowerCase() === username.toLowerCase(),
           );
 
           if (!user) {
@@ -902,15 +957,12 @@ export class GitlabManager implements GitManager {
           const mergeRequests = await this.gitlab.MergeRequests.all(mergeRequestsParams);
 
           const formattedMRs = mergeRequests.map((mr: any) => {
-        // Extract project path from web_url
-        // GitLab URL format: https://gitlab.com/owner/repo/-/merge_requests/123
-        const urlParts = mr.web_url.split('/-/merge_requests/');
-        const projectUrl = urlParts[0] || '';
-        const pathMatch = projectUrl.match(/gitlab\.com\/(.+)$/);
-        const projectPath = pathMatch ? pathMatch[1] : '';
+            const urlParts = mr.web_url.split('/-/merge_requests/');
+            const projectUrl = urlParts[0] || '';
+            const pathMatch = projectUrl.match(/gitlab\.com\/(.+)$/);
+            const projectPath = pathMatch ? pathMatch[1] : '';
 
-        // Extract owner from project path (owner/repo format)
-        const [ownerLogin] = projectPath.split('/');
+            const [ownerLogin] = projectPath.split('/');
 
             return {
               id: mr.id.toString(),
@@ -950,5 +1002,68 @@ export class GitlabManager implements GitManager {
       },
       { ttl: 5 * 60 },
     );
+  }
+
+  async getUnsubmittedRepos(ctx: Context): Promise<UnSubmittedRepo[]> {
+    try {
+      const currentUser = await this.getCurrentUser();
+
+      return getCached(
+        createCacheKey('gitlab', 'unsubmitted', currentUser.username),
+        async () => {
+          try {
+            const gitLabProjects = await this.gitlab.Projects.all({
+              perPage: 100,
+              membership: true,
+            });
+            const userAccount = await ctx.db.query.account.findFirst({
+              where: (account, { eq }) => eq(account.accountId, currentUser.id),
+            });
+
+            if (!userAccount) {
+              return [];
+            }
+            const submittedRepos = await ctx.db.query.project.findMany({
+              where: (project, { eq }) => eq(project.ownerId, userAccount.userId),
+            });
+            const notSubmitted = gitLabProjects.filter((repo) => {
+              return !submittedRepos.some(
+                (submitted) => submitted.gitRepoUrl === repo.path_with_namespace,
+              );
+            });
+            return notSubmitted.map((repo) => {
+              return {
+                name: repo.name,
+                repoUrl: repo.path_with_namespace as string,
+                stars: repo.star_count as number,
+                forks: repo.forks_count as number,
+                isOwner: repo.owner.name === currentUser.username,
+                gitHost: 'gitlab',
+                description: repo.description,
+                created_at: repo.created_at! as string,
+                owner: {
+                  avatar_url: (repo.avatar_url as string) || '',
+                },
+              };
+            });
+          } catch (error) {
+            console.error('Error fetching GitLab unsubmitted repos:', error);
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'Failed to retrieve unsubmitted repositories from GitLab',
+            });
+          }
+        },
+        { ttl: 5 * 60 },
+      );
+    } catch (error) {
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to fetch unsubmitted repos: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
   }
 }

@@ -1,22 +1,23 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod/v4';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { useTRPC } from '@/hooks/use-trpc';
 import { projectApprovalStatusEnum, projectProviderEnum } from '@workspace/db/schema';
-import { useCallback, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useDebouncedCallback } from 'use-debounce';
+import { useCallback, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTRPC } from '@/hooks/use-trpc';
+import { useForm } from 'react-hook-form';
 import { Project } from '@/types/project';
+import { toast } from 'sonner';
+import { z } from 'zod/v4';
 
 const editProjectSchema = z.object({
   name: z.string().min(1, 'Project name is required'),
   description: z.string(),
   gitRepoUrl: z.string().min(1, 'Repository URL is required'),
   gitHost: z.enum(projectProviderEnum.enumValues),
+  repoId: z.string(),
   logoUrl: z.string(),
   approvalStatus: z.enum(projectApprovalStatusEnum.enumValues),
   status: z.string().min(1, 'Project status is required'),
@@ -73,6 +74,7 @@ export function ProjectEditForm({ projectData, projectId }: ProjectEditFormProps
       description: '',
       gitRepoUrl: '',
       gitHost: 'github' as const,
+      repoId: '',
       logoUrl: '',
       approvalStatus: 'pending' as const,
       status: '',
@@ -195,6 +197,7 @@ export function ProjectEditForm({ projectData, projectId }: ProjectEditFormProps
               ? 'Private repository detected. Admin cannot modify private repos without proper credentials.'
               : 'Repository found and available!',
           });
+          form.setValue('repoId', result.id.toString());
         }
       } catch (error) {
         console.error('Repository validation error:', error);
@@ -205,20 +208,25 @@ export function ProjectEditForm({ projectData, projectId }: ProjectEditFormProps
         });
       }
     },
-    [queryClient, trpc],
+    [queryClient, trpc, form],
   );
 
   const debouncedValidateRepo = useDebouncedCallback((repoUrl: string, gitHost: string) => {
     validateRepository(repoUrl, gitHost);
   }, 500);
 
-  const handleRepoChange = (newRepoUrl: string, newGitHost: (typeof projectProviderEnum.enumValues)[number]) => {
+  const handleRepoChange = (
+    newRepoUrl: string,
+    newGitHost: (typeof projectProviderEnum.enumValues)[number],
+  ) => {
     const currentRepoUrl = form.getValues('gitRepoUrl');
     const currentGitHost = form.getValues('gitHost');
 
     if (newRepoUrl !== currentRepoUrl || newGitHost !== currentGitHost) {
       if (projectData?.isRepoPrivate) {
-        toast.error('Cannot modify repository URL for private repositories without proper credentials.');
+        toast.error(
+          'Cannot modify repository URL for private repositories without proper credentials.',
+        );
         return;
       }
 
@@ -259,7 +267,9 @@ export function ProjectEditForm({ projectData, projectId }: ProjectEditFormProps
 
     if (data.gitRepoUrl !== originalRepoUrl || data.gitHost !== originalGitHost) {
       if (projectData?.isRepoPrivate) {
-        toast.error('Cannot modify repository URL for private repositories without proper credentials.');
+        toast.error(
+          'Cannot modify repository URL for private repositories without proper credentials.',
+        );
         return;
       }
 

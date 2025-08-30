@@ -9,6 +9,10 @@ const nextConfig = {
   experimental: {
     reactCompiler: true,
   },
+  // Only use standalone output when building for Docker
+  ...(process.env.NEXT_OUTPUT_STANDALONE === 'true' && {
+    output: 'standalone',
+  }),
   images: {
     remotePatterns: [
       {

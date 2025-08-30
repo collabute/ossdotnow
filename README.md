@@ -72,7 +72,7 @@ ossdotnow/
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.2.13 or higher
+- [Bun](https://bun.sh/) v1.2.19 or higher
 - [Docker](https://www.docker.com/) (for local PostgreSQL and Redis)
 - Git
 
@@ -139,6 +139,7 @@ ossdotnow/
 - `bun db:push` - Push schema changes directly (development only)
 - `bun db:studio` - Open Drizzle Studio for database management
 - `bun db:seed` - Seed the database with sample data
+- `bun db:seed-launches` - Seed the database with sample project launches
 - `bun db:make-all-admin` - Grant admin privileges to all users (development only)
 
 ### Code Quality

@@ -295,7 +295,11 @@ export function LaunchProjectDialog({
   // Private Repository Dialog
   const PrivateRepoDialog = () => (
     <Dialog open={privateRepoDialogOpen} onOpenChange={setPrivateRepoDialogOpen}>
-      <DialogContent className="rounded-none sm:max-w-[500px]">
+      <DialogContent
+        className="rounded-none sm:max-w-[500px]"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-yellow-500" />
@@ -404,7 +408,11 @@ export function LaunchProjectDialog({
               Launch Project
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[80vh] overflow-y-auto rounded-none sm:max-w-[600px]">
+          <DialogContent
+            className="max-h-[80vh] overflow-y-auto rounded-none sm:max-w-[600px]"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
             <DialogHeader>
               <DialogTitle>Launch {projectName}</DialogTitle>
               <DialogDescription>

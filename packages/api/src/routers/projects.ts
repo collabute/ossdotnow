@@ -22,6 +22,7 @@ const createProjectInput = createInsertSchema(project)
   .omit({
     statusId: true,
     typeId: true,
+    repoId: true,
   })
   .extend({
     status: z.string().min(1, 'Project status is required'),
@@ -80,18 +81,22 @@ async function fetchRepoMetric(
       identifier = gitRepoUrl;
     }
 
-    const driver = await getActiveDriver(gitHost as 'github' | 'gitlab', ctx);
-    const repo = await driver.getRepo(identifier);
+    try {
+      const driver = await getActiveDriver(gitHost as 'github' | 'gitlab', ctx);
+      const repo = await driver.getRepo(identifier);
 
-    if (metric === 'forks') {
-      return typeof repo.forks_count === 'number' ? repo.forks_count : null;
-    } else {
-      // stars
-      if (gitHost === 'github') {
-        return typeof repo.stargazers_count === 'number' ? repo.stargazers_count : null;
-      } else if (gitHost === 'gitlab') {
-        return typeof repo.star_count === 'number' ? repo.star_count : null;
+      if (metric === 'forks') {
+        return typeof repo.forks_count === 'number' ? repo.forks_count : null;
+      } else {
+        if (gitHost === 'github') {
+          return typeof repo.stargazers_count === 'number' ? repo.stargazers_count : null;
+        } else if (gitHost === 'gitlab') {
+          return typeof repo.star_count === 'number' ? repo.star_count : null;
+        }
       }
+    } catch (repoError) {
+      console.error(`Failed to fetch ${metric} for ${identifier}:`, repoError);
+      return null;
     }
 
     return null;
@@ -102,6 +107,47 @@ async function fetchRepoMetric(
 }
 
 export const projectsRouter = createTRPCRouter({
+  updateRepoIds: adminProcedure
+    .input(
+      z.object({
+        gitHost: z.enum(['github', 'gitlab', 'all']).optional().default('all'),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const results = {
+        github: { updated: 0, failed: 0, skipped: 0 },
+        gitlab: { updated: 0, failed: 0, skipped: 0 },
+      };
+
+      try {
+        if (input.gitHost === 'github' || input.gitHost === 'all') {
+          const githubDriver = await getActiveDriver('github', ctx as Context);
+          results.github = await githubDriver.updateRepoIds({ db: ctx.db });
+        }
+
+        if (input.gitHost === 'gitlab' || input.gitHost === 'all') {
+          const gitlabDriver = await getActiveDriver('gitlab', ctx as Context);
+          results.gitlab = await gitlabDriver.updateRepoIds({ db: ctx.db });
+        }
+
+        return {
+          success: true,
+          results,
+          totals: {
+            updated: results.github.updated + results.gitlab.updated,
+            failed: results.github.failed + results.gitlab.failed,
+            skipped: results.github.skipped + results.gitlab.skipped,
+          },
+        };
+      } catch (error) {
+        console.error('Error updating repo IDs:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to update repo IDs: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        });
+      }
+    }),
+
   getProjectsAdmin: adminProcedure
     .input(
       z.object({
@@ -949,6 +995,36 @@ export const projectsRouter = createTRPCRouter({
       tags: input.tags,
     });
 
+    let repoId = '';
+
+    if (input.gitRepoUrl && input.gitHost) {
+      try {
+        const gitHost = input.gitHost as 'github' | 'gitlab';
+        const driver = await getActiveDriver(gitHost, ctx as Context);
+
+        const match = input.gitRepoUrl.match(PROVIDER_URL_PATTERNS[gitHost]);
+        if (match) {
+          const [, owner, repo] = match;
+          if (owner && repo) {
+            const repoIdentifier = `${owner}/${repo}`;
+
+            const repoData = await driver.getRepo(repoIdentifier);
+
+            if (repoData && typeof repoData.id !== 'undefined') {
+              repoId = repoData.id.toString();
+              console.log(`Fetched repo_id ${repoId} for ${input.gitRepoUrl}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching repo_id for ${input.gitRepoUrl}:`, error);
+      }
+    }
+
+    if (!repoId) {
+      repoId = input.gitRepoUrl || 'pending';
+    }
+
     return await ctx.db.transaction(async (tx) => {
       const [newProject] = await tx
         .insert(project)
@@ -957,6 +1033,7 @@ export const projectsRouter = createTRPCRouter({
           ownerId: ctx.session.userId,
           statusId,
           typeId,
+          repoId,
         })
         .returning();
 
@@ -1560,5 +1637,20 @@ export const projectsRouter = createTRPCRouter({
       const contributors = await driver.getContributors(input.url);
 
       return contributors;
+    }),
+
+  getUnSubmitted: publicProcedure
+    .input(
+      z.object({
+        provider: z.enum(['github', 'gitlab']),
+        username: z.string(),
+        userId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { provider, username, userId } = input;
+      const driver = await getActiveDriver(provider, ctx as Context);
+      const unSubmitted = await driver.getUnsubmittedRepos(ctx as Context, username, userId);
+      return unSubmitted;
     }),
 });

@@ -130,9 +130,16 @@ function useSubmission(onSuccess?: () => void) {
 export default function SubmissionForm({
   earlySubmission = false,
   onSuccess,
+  quickSubmit,
 }: {
   earlySubmission?: boolean;
   onSuccess?: () => void;
+  quickSubmit?: {
+    repoUrl: string;
+    provider: 'github' | 'gitlab';
+    description?: string;
+    name: string;
+  };
 } = {}) {
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
   const [currentStep, setCurrentStep] = useState<number>(0);
@@ -170,11 +177,11 @@ export default function SubmissionForm({
     mode: 'onBlur',
     reValidateMode: 'onChange',
     defaultValues: {
-      name: '',
-      description: '',
+      name: `${quickSubmit ? quickSubmit.name : ''}`,
+      description: `${quickSubmit ? quickSubmit.description : ''}`,
       logoUrl: '',
-      gitRepoUrl: '',
-      gitHost: 'github',
+      gitRepoUrl: `${quickSubmit ? quickSubmit.repoUrl : ''}`,
+      gitHost: `${quickSubmit ? quickSubmit.provider : 'github'}`,
       status: '',
       type: '',
       socialLinks: {
@@ -277,9 +284,11 @@ export default function SubmissionForm({
               earlySubmission
                 ? trpc.earlySubmission.checkDuplicateRepo.queryOptions({
                     gitRepoUrl: repoUrl,
+                    gitHost: gitHost,
                   })
                 : trpc.submission.checkDuplicateRepo.queryOptions({
                     gitRepoUrl: repoUrl,
+                    gitHost: gitHost,
                   }),
             );
 
@@ -290,6 +299,12 @@ export default function SubmissionForm({
                 message: `This repository has already been submitted! The project "${duplicateCheck.projectName}" has ${duplicateCheck.statusMessage}.`,
               });
               return;
+            } else {
+              setRepoValidation({
+                isValidating: false,
+                isValid: true,
+                message: 'Repository found and available!',
+              });
             }
 
             // Check if repository is private
@@ -405,6 +420,7 @@ export default function SubmissionForm({
       ...formData,
       status: formData.status || '',
       type: formData.type || '',
+      repoId: 'pending',
     });
   }
 
@@ -500,6 +516,8 @@ export default function SubmissionForm({
             if (isValid) {
               form.handleSubmit(handleProjectSubmission)(e);
             } else {
+              const errors = form.formState.errors;
+              console.log('Validation errors:', errors);
               toast.error('Please fix all validation errors before submitting.');
             }
           }}

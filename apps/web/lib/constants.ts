@@ -1,4 +1,5 @@
 import Icons from '@workspace/ui/components/icons';
+import { projectProviderEnum } from '@workspace/db/schema';
 
 export const providers = [
   {
@@ -14,3 +15,14 @@ export const providers = [
 ];
 
 export type ProviderId = (typeof providers)[number]['providerId'];
+
+export const isValidProvider = (
+  provider: string | null | undefined,
+): provider is (typeof projectProviderEnum.enumValues)[number] => {
+  return provider === 'github' || provider === 'gitlab';
+};
+
+export interface RepoContent {
+  content: string;
+  encoding: 'base64' | 'utf8';
+}

@@ -6,11 +6,14 @@ import {
   SelectValue,
 } from '@workspace/ui/components/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/components/tabs';
-import { Heart, TrendingUp, GitFork, Clock, ExternalLink } from 'lucide-react';
+import { Heart, TrendingUp, GitFork, Clock, ExternalLink, FileText } from 'lucide-react';
 import ProjectCard from '@/app/(public)/(projects)/projects/project-card';
+import { MarkdownContent } from '@/components/project/markdown-content';
 import { Card, CardContent } from '@workspace/ui/components/card';
 import { Skeleton } from '@workspace/ui/components/skeleton';
+import UnsubmittedRepoCard from './unsubmitted-project-card';
 import React, { useRef, useEffect, useState } from 'react';
+import { Switch } from '@workspace/ui/components/switch';
 import { Button } from '@workspace/ui/components/button';
 import { ContributionGraph } from './contribution-graph';
 import { ProjectWithGithubData } from '@/types/project';
@@ -19,6 +22,8 @@ import { authClient } from '@workspace/auth/client';
 import Icons from '@workspace/ui/components/icons';
 import Link from '@workspace/ui/components/link';
 import { useQuery } from '@tanstack/react-query';
+import { UnSubmittedRepo } from '@workspace/api';
+import { RepoContent } from '@/lib/constants';
 import { cn } from '@workspace/ui/lib/utils';
 import { useTRPC } from '@/hooks/use-trpc';
 import { useQueryState } from 'nuqs';
@@ -51,21 +56,27 @@ interface PullRequestData {
 }
 
 interface ProfileTabsProps {
+  isReadmeLoading: boolean;
+  profileReadme: RepoContent | null;
   profile: Profile | undefined;
   isProfileLoading: boolean;
   tab: string;
   setTab: (value: string) => void;
   featuredProjects: ProjectWithGithubData[];
   projectsWithGithubData: ProjectWithGithubData[];
+  unsubmittedProjects: UnSubmittedRepo[];
 }
 
 export function ProfileTabs({
+  isReadmeLoading,
+  profileReadme,
   profile,
   isProfileLoading,
   tab,
   setTab,
   featuredProjects,
   projectsWithGithubData,
+  unsubmittedProjects,
 }: ProfileTabsProps) {
   const featuredCarouselRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +84,9 @@ export function ProfileTabs({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [session, setSession] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [showUnsubmitted, setShowUnsubmitted] = useQueryState('showUnsubmitted', {
+    defaultValue: 'false',
+  });
 
   useEffect(() => {
     authClient
@@ -88,6 +102,7 @@ export function ProfileTabs({
       });
   }, []);
 
+  const filteredUnSubmitted = unsubmittedProjects;
   const sessionUserId = session?.data?.user?.id;
 
   const isOwnProfile =
@@ -108,7 +123,10 @@ export function ProfileTabs({
         <ContributionGraph username={profile.git.login} provider={profile.git.provider} />
       )}
       <Tabs defaultValue={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 rounded-none border-neutral-800 bg-neutral-900/50">
+        <TabsList className="grid w-full grid-cols-4 rounded-none border-neutral-800 bg-neutral-900/50">
+          <TabsTrigger value="about" className="rounded-none">
+            About
+          </TabsTrigger>
           <TabsTrigger value="projects" className="rounded-none">
             Projects
           </TabsTrigger>
@@ -119,6 +137,46 @@ export function ProfileTabs({
             Collections
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="about" className="mt-2">
+          {profileReadme ? (
+            <div className="rounded-none border border-neutral-800 bg-neutral-900/50 px-6">
+              <MarkdownContent
+                content={profileReadme.content}
+                encoding={
+                  profileReadme.encoding === 'base64' || profileReadme.encoding === 'utf8'
+                    ? profileReadme.encoding
+                    : 'base64'
+                }
+              />
+            </div>
+          ) : isReadmeLoading ? (
+            <Card className="rounded-none border-neutral-800 bg-neutral-900/50 p-0">
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <Skeleton className="h-5 w-3/4 rounded-none" />
+                  <Skeleton className="h-4 w-1/2 rounded-none" />
+                  <Skeleton className="h-4 w-5/6 rounded-none" />
+                  <Skeleton className="h-4 w-2/3 rounded-none" />
+                  <Skeleton className="h-4 w-4/5 rounded-none" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="rounded-none border border-neutral-800 bg-neutral-900/50 p-6">
+              <div className="py-8 text-center">
+                <FileText className="mx-auto mb-4 h-12 w-12 text-neutral-600" />
+                <h3 className="mb-2 text-lg font-medium text-neutral-300">No README found</h3>
+                <p className="mx-auto mb-4 max-w-md text-sm text-neutral-400">
+                  A profile README typically includes a short bio, interests, skills, and links to
+                  notable projects or socials.
+                </p>
+                <p className="text-xs text-neutral-500">
+                  Common filenames: README.md, README.rst, README.txt
+                </p>
+              </div>
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="projects" className="mt-2">
           {featuredProjects.length > 0 ? (
@@ -176,11 +234,63 @@ export function ProfileTabs({
             </div>
           ) : null}
 
+          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-xl font-semibold">
+              {showUnsubmitted === 'true' ? 'Unsubmitted Projects' : 'Submitted Projects'}
+            </h2>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 rounded-none border border-neutral-800 bg-neutral-900/50 px-1 py-1">
+                <button
+                  className={`cursor-pointer rounded-none px-3 py-1 text-sm font-medium transition-all ${
+                    showUnsubmitted === 'false'
+                      ? 'bg-neutral-700 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-neutral-300'
+                  }`}
+                  onClick={() => setShowUnsubmitted('false')}
+                >
+                  Submitted
+                </button>
+                <button
+                  className={`cursor-pointer rounded-none px-3 py-1 text-sm font-medium transition-all ${
+                    showUnsubmitted === 'true'
+                      ? 'bg-neutral-700 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-neutral-300'
+                  }`}
+                  onClick={() => setShowUnsubmitted('true')}
+                >
+                  Unsubmitted
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div>
-            <div className="space-y-4">
-              {projectsWithGithubData?.map((project) => (
-                <ProjectCard key={project.id} project={project} isOwnProfile={isOwnProfile} />
-              ))}
+            <div className="grid grid-cols-1 gap-4 space-y-4">
+              {showUnsubmitted === 'true' ? (
+                filteredUnSubmitted.length > 0 ? (
+                  filteredUnSubmitted.map((project, id) => (
+                    <UnsubmittedRepoCard isOwnProfile={isOwnProfile} key={id} repo={project} />
+                  ))
+                ) : (
+                  <div className="py-12 text-center">
+                    <div className="mb-4 text-neutral-400">
+                      <FileText className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                      <p>No unsubmitted projects found</p>
+                    </div>
+                  </div>
+                )
+              ) : projectsWithGithubData?.length > 0 ? (
+                projectsWithGithubData?.map((project) => (
+                  <ProjectCard key={project.id} project={project} isOwnProfile={isOwnProfile} />
+                ))
+              ) : (
+                <div className="py-12 text-center">
+                  <div className="mb-4 text-neutral-400">
+                    <FileText className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                    <p>No submitted projects found</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </TabsContent>
@@ -418,6 +528,7 @@ function UserPullRequests({ profile }: { profile: Profile }) {
                         <Link
                           href={pr.url}
                           target="_blank"
+                          rel="noopener noreferrer"
                           className="hover:text-primary text-base font-medium"
                         >
                           {pr.title}
@@ -455,6 +566,7 @@ function UserPullRequests({ profile }: { profile: Profile }) {
                           <Link
                             href={pr.repository.url}
                             target="_blank"
+                            rel="noopener noreferrer"
                             className="hover:text-neutral-200"
                           >
                             {pr.repository.nameWithOwner}
@@ -474,18 +586,28 @@ function UserPullRequests({ profile }: { profile: Profile }) {
                         </div>
                       </div>
                       {pr.headRefName && (
-                        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-neutral-500">
-                          <div className="flex items-center gap-2">
-                            <code className="rounded-none bg-neutral-800 px-1.5 py-0.5">
+                        <div className="mt-2 flex flex-col gap-2 text-xs text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                            <code className="min-w-0 rounded-none bg-neutral-800 px-1.5 py-0.5 break-words hyphens-auto">
                               {pr.headRefName}
                             </code>
-                            <span>→</span>
-                            <code className="rounded-none bg-neutral-800 px-1.5 py-0.5">
-                              {pr.baseRefName}
-                            </code>
+                            {pr.baseRefName && (
+                              <>
+                                <span className="shrink-0">→</span>
+                                <code className="min-w-0 rounded-none bg-neutral-800 px-1.5 py-0.5 break-words hyphens-auto">
+                                  {pr.baseRefName}
+                                </code>
+                              </>
+                            )}
                           </div>
                           <Button variant="ghost" size="sm" asChild>
-                            <Link href={pr.url} target="_blank">
+                            <Link
+                              href={pr.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="Open pull request in a new tab"
+                              title="Open pull request in a new tab"
+                            >
                               <ExternalLink className="h-4 w-4" />
                             </Link>
                           </Button>
@@ -494,7 +616,13 @@ function UserPullRequests({ profile }: { profile: Profile }) {
                       {!pr.headRefName && (
                         <div className="mt-2 flex justify-end">
                           <Button variant="ghost" size="sm" asChild>
-                            <Link href={pr.url} target="_blank">
+                            <Link
+                              href={pr.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="Open pull request in a new tab"
+                              title="Open pull request in a new tab"
+                            >
                               <ExternalLink className="h-4 w-4" />
                             </Link>
                           </Button>

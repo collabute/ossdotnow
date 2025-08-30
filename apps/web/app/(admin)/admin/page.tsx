@@ -1,24 +1,53 @@
 'use client';
 
-import { AlertCircle, Clock, Folder, FolderPlus, RefreshCcw, UserPlus, Users } from 'lucide-react';
+import {
+  AlertCircle,
+  Clock,
+  Folder,
+  FolderPlus,
+  RefreshCcw,
+  UserPlus,
+  Users,
+  Database,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@workspace/ui/components/button';
 import { Badge } from '@workspace/ui/components/badge';
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { useTRPC } from '@/hooks/use-trpc';
+import { toast } from 'sonner';
 
 function useDashboard() {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const { data } = useQuery(trpc.admin.dashboard.queryOptions());
+
+  const updateRepoIds = useMutation(
+    trpc.projects.updateRepoIds.mutationOptions({
+      onSuccess: (data) => {
+        toast.success('Repository IDs Updated', {
+          description: `Updated: ${data.totals.updated}, Failed: ${data.totals.failed}, Skipped: ${data.totals.skipped}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ['admin.dashboard'] });
+      },
+      onError: () => {
+        toast.error('Error', {
+          description: 'Failed to update repository IDs',
+        });
+      },
+    }),
+  );
 
   return {
     data,
+    updateRepoIds,
   };
 }
 
 export default function AdminDashboard() {
-  const { data } = useDashboard();
+  const { data, updateRepoIds } = useDashboard();
 
   const latestProjects = data?.latestProjects;
 
@@ -114,6 +143,15 @@ export default function AdminDashboard() {
             <Button className="w-full justify-start" variant="outline">
               <RefreshCcw className="mr-2 h-4 w-4" />
               Sync GitHub Data
+            </Button>
+            <Button
+              className="w-full justify-start"
+              variant="outline"
+              onClick={() => updateRepoIds.mutate({ gitHost: 'all' })}
+              disabled={updateRepoIds.isPending}
+            >
+              <Database className="mr-2 h-4 w-4" />
+              {updateRepoIds.isPending ? 'Updating Repo IDs...' : 'Update Repository IDs'}
             </Button>
           </CardContent>
         </Card>

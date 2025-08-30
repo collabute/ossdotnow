@@ -113,6 +113,20 @@ export interface FileData {
   html_url?: string;
 }
 
+export interface UnSubmittedRepo {
+  name: string;
+  repoUrl: string;
+  stars: number;
+  forks: number;
+  isOwner: boolean;
+  description?: string | null;
+  gitHost: 'github' | 'gitlab';
+  owner: {
+    avatar_url: string;
+  };
+  created_at: string;
+}
+
 export type ReadmeData = FileData;
 export type ContributingData = FileData;
 export type CodeOfConductData = FileData;
@@ -240,4 +254,6 @@ export interface GitManager {
   ): Promise<RestEndpointMethodTypes['orgs']['getMembershipForUser']['response']['data']>;
   getContributions(username: string): Promise<ContributionData>;
   getUserDetails(username: string): Promise<UserData>;
+  getUnsubmittedRepos(ctx: any, username: string, userId: string): Promise<UnSubmittedRepo[]>;
+  updateRepoIds(ctx: { db: any }): Promise<{ updated: number; failed: number; skipped: number }>;
 }

@@ -14,7 +14,16 @@ import { track } from '@databuddy/sdk';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-export default function SubmissionDialog() {
+type SubmissionDialogProps = {
+  quickSubmit?: {
+    repoUrl: string;
+    provider: 'github' | 'gitlab';
+    description?: string;
+    name: string;
+  };
+};
+
+export default function SubmissionDialog({ quickSubmit }: SubmissionDialogProps) {
   const [open, setOpen] = useState(false);
 
   const handleSuccess = () => {
@@ -35,12 +44,16 @@ export default function SubmissionDialog() {
           Submit Project
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-none">
+      <DialogContent
+        className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-none"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Submit Project</DialogTitle>
           <DialogDescription>Submit an open source project.</DialogDescription>
         </DialogHeader>
-        <SubmissionForm onSuccess={handleSuccess} />
+        <SubmissionForm quickSubmit={quickSubmit} onSuccess={handleSuccess} />
       </DialogContent>
     </Dialog>
   );
