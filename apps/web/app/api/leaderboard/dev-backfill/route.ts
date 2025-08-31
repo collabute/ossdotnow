@@ -4,16 +4,20 @@ export const dynamic = 'force-dynamic';
 import { auth } from '@workspace/auth/server';
 import { env } from '@workspace/env/server';
 import { NextRequest } from 'next/server';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 const Body = z.object({
   users: z
     .array(
-      z.object({
-        userId: z.string().min(1),
-        githubLogin: z.string().min(1).optional(),
-        gitlabUsername: z.string().min(1).optional(),
-      }),
+      z
+        .object({
+          userId: z.string().min(1),
+          githubLogin: z.string().min(1).optional(),
+          gitlabUsername: z.string().min(1).optional(),
+        })
+        .refine((u) => !!(u.githubLogin || u.gitlabUsername), {
+          message: 'At least one of githubLogin or gitlabUsername is required',
+        }),
     )
     .min(1)
     .max(200),

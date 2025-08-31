@@ -23,7 +23,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams?:
       <div className="mt-12 mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Global Leaderboard</h1>
         <p className="text-muted-foreground">
-          Top contributors across GitHub and GitLab based of open source contributions.
+          Top contributors across GitHub and GitLab based on open source contributions.
         </p>
       </div>
       <LeaderboardClient initialWindow={initialWindow} />

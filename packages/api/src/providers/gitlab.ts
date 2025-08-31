@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 export type DateLike = string | Date;
 export type DateRange = { from: DateLike; to: DateLike };
@@ -40,9 +40,11 @@ function cleanBaseUrl(url: string): string {
 }
 
 function toIso8601(input: DateLike): string {
-  if (input instanceof Date) return input.toISOString();
-  const d = new Date(input);
-  return Number.isNaN(d.getTime()) ? String(input) : d.toISOString();
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) {
+    throw new Error(`Invalid DateLike: ${String(input)}`);
+  }
+  return d.toISOString();
 }
 
 function startOfUtcDay(d: DateLike): Date {

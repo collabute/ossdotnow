@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { inArray } from 'drizzle-orm';
 
 import { user as userTable, account as accountTable } from '../packages/db/src/schema/auth';
-import { setUserMetaFromProviders } from '../packages/api/src/leaderboard/useMeta';
+import { setUserMeta } from '../packages/api/src/leaderboard/meta';
 import { redis } from '../packages/api/src/redis/client';
 
 const GH = 'github';
@@ -54,20 +54,23 @@ async function main() {
       .select({
         userId: accountTable.userId,
         providerId: accountTable.providerId,
+        providerLogin: (accountTable as any).providerLogin,
       })
       .from(accountTable)
       .where(inArray(accountTable.userId, userIds));
 
-    const map = new Map<string, { gh?: string; gl?: string }>();
-    for (const id of userIds) map.set(id, {});
+    const map = new Map<string, { username?: string; gh?: string; gl?: string }>();
+    for (const id of userIds) {
+      map.set(id, { username: usernameByUserId.get(id) });
+    }
 
     for (const l of links) {
       const m = map.get(l.userId)!;
-      const uname = usernameByUserId.get(l.userId);
-      if (!uname) continue;
+      const login = asStr((l as any).providerLogin);
+      if (!login) continue;
 
-      if (l.providerId === GH && !m.gh) m.gh = uname;
-      if (l.providerId === GL && !m.gl) m.gl = uname;
+      if (l.providerId === GH && !m.gh) m.gh = login;
+      if (l.providerId === GL && !m.gl) m.gl = login;
     }
 
     const BATCH = 100;
@@ -78,10 +81,10 @@ async function main() {
 
       await Promise.all(
         chunk.map(async (id) => {
-          const { gh, gl } = map.get(id)!;
-          await setUserMetaFromProviders(id, gh, gl);
+          const username = usernameByUserId.get(id);
+          await setUserMeta(id, { username }, { seedLeaderboards: false });
 
-          const meta = await redis.hgetall(META(id));
+          await redis.sadd(USER_SET, id);
         }),
       );
 

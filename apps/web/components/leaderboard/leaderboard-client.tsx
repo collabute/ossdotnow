@@ -231,7 +231,7 @@ export default function LeaderboardClient({
                 setWindow(v);
               }}
             >
-              <SelectTrigger className="w-[160px] rounded-none">
+              <SelectTrigger className="w-[160px] rounded-none focus-visible:ring-0 focus-visible:border-input">
                 <SelectValue placeholder="Time window" />
               </SelectTrigger>
               <SelectContent className="rounded-none">
@@ -243,7 +243,7 @@ export default function LeaderboardClient({
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium">Page size</label>
             <Input
-              className="w-[88px] rounded-none"
+              className="w-[88px] rounded-none focus-visible:ring-0"
               type="number"
               min={5}
               max={100}
@@ -310,21 +310,21 @@ export default function LeaderboardClient({
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center">
+                    <TableCell colSpan={6} className="py-6 text-center">
                       Loading…
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading && error && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-destructive py-8 text-center">
+                    <TableCell colSpan={6} className="text-destructive py-6 text-center">
                       {error}
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading && !error && sortedRows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center">
+                    <TableCell colSpan={6} className="py-6 text-center">
                       No entries yet.
                     </TableCell>
                   </TableRow>
@@ -335,7 +335,7 @@ export default function LeaderboardClient({
                     <TableRow key={r.userId}>
                       <TableCell>{(cursor || 0) + idx + 1}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 py-2">
                           <div className="bg-muted h-8 w-8 shrink-0 overflow-hidden rounded-full">
                             {r._profile?.avatarUrl && (
                               <img

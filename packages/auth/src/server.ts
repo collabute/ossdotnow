@@ -7,9 +7,9 @@ import { betterAuth } from 'better-auth';
 import { db } from '@workspace/db';
 import 'server-only';
 
-import { setUserMetaFromProviders } from '@workspace/api/use-meta';
+import { setUserMetaFromProviders } from '@workspace/api/leaderboard/use-meta';
+import { setUserMeta } from '@workspace/api/leaderboard/meta';
 import { createAuthMiddleware } from 'better-auth/api';
-import { setUserMeta } from '@workspace/api/meta';
 import { eq } from 'drizzle-orm';
 
 const ORIGIN =
@@ -48,7 +48,11 @@ export const auth = betterAuth({
       async function githubIdToLogin(id: string): Promise<string | undefined> {
         try {
           const res = await fetch(`https://api.github.com/user/${id}`, {
-            headers: { 'User-Agent': 'ossdotnow' },
+            headers: {
+              'User-Agent': 'ossdotnow',
+              Accept: 'application/vnd.github+json',
+              ...(env.GITHUB_TOKEN ? { Authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}),
+            },
           });
           if (!res.ok) return undefined;
           const j = await res.json().catch(() => null);

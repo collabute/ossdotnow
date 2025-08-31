@@ -4,10 +4,10 @@ export const revalidate = 0;
 
 import { NextRequest } from 'next/server';
 import { db } from '@workspace/db';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
-import { getLeaderboardPage } from '@workspace/api/read';
-import { getUserMetas } from '@workspace/api/use-meta';
+import { getLeaderboardPage } from '@workspace/api/leaderboard/read';
+import { getUserMetas } from '@workspace/api/leaderboard/use-meta';
 
 const Query = z.object({
   provider: z.enum(['combined', 'github', 'gitlab']).default('combined'),
@@ -42,27 +42,12 @@ export async function GET(req: NextRequest) {
   const metas = await getUserMetas(userIds);
   const metaMap = new Map(metas.map((m) => [m.userId, m]));
 
-  const header = [
-    'rank',
-    'userId',
-    'username',
-    'githubLogin',
-    'gitlabUsername',
-    'total',
-    'github',
-    'gitlab',
-  ];
+  const header = ['rank', 'userId', 'username', 'githubLogin', 'gitlabUsername', 'total'];
   const lines = [header.join(',')];
 
   entries.forEach((e, idx) => {
     const rank = cursor + idx + 1;
     const m = metaMap.get(e.userId);
-
-    const hasGithub = !!(m?.githubLogin && String(m.githubLogin).trim());
-    const hasGitlab = !!(m?.gitlabUsername && String(m.gitlabUsername).trim());
-
-    const githubScore = hasGithub ? e.score : 0;
-    const gitlabScore = hasGitlab ? e.score : 0;
 
     const row = [
       rank,
@@ -71,8 +56,6 @@ export async function GET(req: NextRequest) {
       m?.githubLogin ?? '',
       m?.gitlabUsername ?? '',
       e.score,
-      githubScore,
-      gitlabScore,
     ]
       .map((v) => (typeof v === 'string' ? `"${v.replace(/"/g, '""')}"` : String(v)))
       .join(',');
@@ -81,7 +64,7 @@ export async function GET(req: NextRequest) {
   });
 
   const csv = lines.join('\n');
-  const filename = `leaderboard_combined_${window}_${new Date().toISOString().slice(0, 10)}.csv`;
+  const filename = `leaderboard_${window}_${new Date().toISOString().slice(0, 10)}.csv`;
 
   return new Response(csv, {
     status: 200,

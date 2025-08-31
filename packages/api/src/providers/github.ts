@@ -1,6 +1,6 @@
 const GITHUB_GQL_ENDPOINT = 'https://api.github.com/graphql';
 
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 export type DateLike = string | Date;
 export type DateRange = { from: DateLike; to: DateLike };
@@ -211,7 +211,7 @@ export async function getGithubContributionTotalsForDay(
   const d = typeof dayUtc === 'string' ? new Date(dayUtc) : dayUtc;
   const from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
   const to = new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999),
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0),
   );
   return getGithubContributionTotals(login, { from, to }, token);
 }

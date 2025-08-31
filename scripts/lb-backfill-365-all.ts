@@ -253,14 +253,18 @@ async function main() {
 
     const succeeded = results.filter((r) => r.ok).map((r) => r.id);
     if (succeeded.length) {
-      const pipe = redis.pipeline();
-      for (const id of succeeded) pipe.sadd(DONE(flags.days), id);
-      await pipe.exec();
+      if (flags.dry) {
+        console.log(`[dry] would mark done in ${DONE(flags.days)}: ${succeeded.join(', ')}`);
+      } else {
+        const pipe = redis.pipeline();
+        for (const id of succeeded) pipe.sadd(DONE(flags.days), id);
+        await pipe.exec();
+      }
     }
 
     const failed = results.filter((r) => !r.ok).map((r) => r.id);
     console.log(
-      `Batch complete: ok=${succeeded.length}, failed=${failed.length}, marked done=${succeeded.length}.`,
+      `Batch complete: ok=${succeeded.length}, failed=${failed.length}, marked done=${flags.dry ? 0 : succeeded.length}.`,
     );
 
     if (succeeded.length === 0 && failed.length > 0) {

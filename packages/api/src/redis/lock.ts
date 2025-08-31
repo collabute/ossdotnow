@@ -1,25 +1,30 @@
 import { redis } from './client';
 
-export async function acquireLock(key: string, ttlSec = 60): Promise<boolean> {
-  const ok = await redis.set(key, '1', { nx: true, ex: ttlSec });
-  return ok === 'OK';
+export async function acquireLock(key: string, ttlSec = 60): Promise<string | null> {
+  const token = Math.random().toString(36).slice(2);
+  const ok = await redis.set(key, token, { nx: true, ex: ttlSec });
+  return ok === 'OK' ? token : null;
 }
 
-export async function releaseLock(key: string): Promise<void> {
+export async function releaseLock(key: string, token: string): Promise<void> {
   try {
-    await redis.del(key);
+    await redis.eval(
+      'if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) else return 0 end',
+      [key],
+      [token],
+    );
   } catch {
     //ignore
   }
 }
 
 export async function withLock<T>(key: string, ttlSec: number, fn: () => Promise<T>): Promise<T> {
-  const got = await acquireLock(key, ttlSec);
-  if (!got) throw new Error('LOCK_CONFLICT'); // normalized
+  const token = await acquireLock(key, ttlSec);
+  if (!token) throw new Error('LOCK_CONFLICT');
   try {
     return await fn();
   } finally {
-    await releaseLock(key);
+    await releaseLock(key, token);
   }
 }
 

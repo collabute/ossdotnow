@@ -76,7 +76,7 @@ export async function refreshUserRollups(
   const now = nowUtc();
 
   const hasGithub = !!args.githubLogin && !!args.githubToken;
-  const hasGitlab = !!args.gitlabUsername;
+  const hasGitlab = !!args.gitlabUsername && !!args.gitlabToken;
 
   if (!hasGithub && !hasGitlab) {
     return { provider: 'none', wrote: {} };

@@ -1,4 +1,3 @@
-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -8,11 +7,11 @@ import { z } from 'zod/v4';
 import { isCronAuthorized } from '@workspace/env/verify-cron';
 import { env } from '@workspace/env/server';
 
-import { backfillLockKey, withLock, acquireLock, releaseLock } from '@workspace/api/locks';
+import { backfillLockKey, withLock, acquireLock, releaseLock } from '@workspace/api/redis/locks';
+import { setUserMetaFromProviders } from '@workspace/api/leaderboard/use-meta';
+import { refreshUserRollups } from '@workspace/api/leaderboard/aggregator';
 import { syncUserLeaderboards } from '@workspace/api/leaderboard/redis';
-import { setUserMetaFromProviders } from '@workspace/api/use-meta';
 import { db } from '@workspace/db';
-import { refreshUserRollups } from '@workspace/api/aggregator';
 
 function ymd(d = new Date()) {
   const y = d.getUTCFullYear();
@@ -23,9 +22,20 @@ function ymd(d = new Date()) {
 
 const Body = z
   .object({
-    userId: z.string().min(1).transform((s) => s.trim()),
-    githubLogin: z.string().min(1).transform((s) => s.trim()).optional(),
-    gitlabUsername: z.string().min(1).transform((s) => s.trim()).optional(),
+    userId: z
+      .string()
+      .min(1)
+      .transform((s) => s.trim()),
+    githubLogin: z
+      .string()
+      .min(1)
+      .transform((s) => s.trim())
+      .optional(),
+    gitlabUsername: z
+      .string()
+      .min(1)
+      .transform((s) => s.trim())
+      .optional(),
 
     days: z.number().int().min(1).max(365).optional(),
     concurrency: z.number().int().min(1).max(8).optional(),
@@ -93,8 +103,8 @@ export async function POST(req: NextRequest) {
       const k2 = backfillLockKey(p2 as 'github' | 'gitlab', body.userId);
 
       return await withLock(k1, ttlSec, async () => {
-        const got2 = await acquireLock(k2, ttlSec);
-        if (!got2) throw new Error(`LOCK_CONFLICT:${p2}`);
+        const t2 = await acquireLock(k2, ttlSec);
+        if (!t2) throw new Error(`LOCK_CONFLICT:${p2}`);
         try {
           const out = await runOnce();
           return Response.json({
@@ -107,7 +117,7 @@ export async function POST(req: NextRequest) {
             providerUsed: out.provider,
           });
         } finally {
-          await releaseLock(k2);
+          await releaseLock(k2, t2);
         }
       });
     }

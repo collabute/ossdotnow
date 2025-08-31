@@ -8,8 +8,8 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod/v4';
 
 import { syncUserLeaderboards } from '@workspace/api/leaderboard/redis';
-import { refreshUserRollups } from '@workspace/api/aggregator';
-import { redis } from '@workspace/api/redis';
+import { refreshUserRollups } from '@workspace/api/leaderboard/aggregator';
+import { redis } from '@workspace/api/redis/client';
 import { db } from '@workspace/db';
 
 const USER_SET = 'lb:users';

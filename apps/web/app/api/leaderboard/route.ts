@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
 import { z } from "zod/v4";
 import { db } from "@workspace/db";
-import { getLeaderboardPage } from "@workspace/api/read";
+import { getLeaderboardPage } from "@workspace/api/leaderboard/read";
 
 const HAS_ALL_TIME = false as const;
 

@@ -2,9 +2,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { getUserMetas } from '@workspace/api/use-meta';
+import { getUserMetas } from '@workspace/api/leaderboard/use-meta';
 import { NextRequest } from 'next/server';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 const Body = z.object({
   userIds: z.array(z.string().min(1)).min(1).max(200),

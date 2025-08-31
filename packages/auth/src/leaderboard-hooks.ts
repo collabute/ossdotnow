@@ -1,4 +1,4 @@
-import { setUserMeta } from "@workspace/api/meta";
+import { setUserMeta } from "@workspace/api/leaderboard/meta";
 import { syncUserLeaderboards } from "@workspace/api/leaderboard/redis";
 import { db } from "@workspace/db";
 

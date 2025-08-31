@@ -6,13 +6,13 @@
     ".": "./src/root.ts",
     "./trpc": "./src/trpc.ts",
     "./providers/types": "./src/providers/types.ts",
-    "./aggregator": "./src/leaderboard/aggregator.ts",
+    "./leaderboard/aggregator": "./src/leaderboard/aggregator.ts",
     "./leaderboard/redis": "./src/leaderboard/redis.ts",
-    "./redis": "./src/redis/client.ts",
-    "./locks": "./src/redis/lock.ts",
-    "./read": "./src/leaderboard/read.ts",
-    "./use-meta": "./src/leaderboard/useMeta.ts",
-    "./meta": "./src/leaderboard/meta.ts"
+    "./redis/client": "./src/redis/client.ts",
+    "./redis/locks": "./src/redis/lock.ts",
+    "./leaderboard/read": "./src/leaderboard/read.ts",
+    "./leaderboard/use-meta": "./src/leaderboard/useMeta.ts",
+    "./leaderboard/meta": "./src/leaderboard/meta.ts"
   },
   "scripts": {
     "lint": "eslint ."

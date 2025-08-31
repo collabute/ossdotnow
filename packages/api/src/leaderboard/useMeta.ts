@@ -1,4 +1,4 @@
-import { redis } from "../redis/client";
+import { redis } from '../redis/client';
 
 export type UserMeta = {
   userId: string;
@@ -16,18 +16,24 @@ export async function setUserMetaFromProviders(
   gitlabUsername?: string | null,
 ): Promise<void> {
   const updates: Record<string, string> = {};
+  const existing = (await redis.hgetall(metaKey(userId)).catch(() => ({}))) as Record<
+    string,
+    string | undefined
+  >;
 
   if (githubLogin && githubLogin.trim()) {
     const gh = githubLogin.trim();
     updates.githubLogin = gh;
-    if (!updates.username) updates.username = gh;
-    if (!updates.avatarUrl) updates.avatarUrl = `https://github.com/${gh}.png?size=80`;
+    if (!existing.username && !updates.username) updates.username = gh;
+    if (!existing.avatarUrl && !updates.avatarUrl)
+      updates.avatarUrl = `https://github.com/${gh}.png?size=80`;
   }
   if (gitlabUsername && gitlabUsername.trim()) {
     const gl = gitlabUsername.trim();
     updates.gitlabUsername = gl;
-    if (!updates.username) updates.username = gl;
-    if (!updates.avatarUrl) updates.avatarUrl = `https://gitlab.com/${gl}.png?width=80`;
+    if (!existing.username && !updates.username) updates.username = gl;
+    if (!existing.avatarUrl && !updates.avatarUrl)
+      updates.avatarUrl = `https://gitlab.com/${gl}.png?width=80`;
   }
 
   if (Object.keys(updates).length > 0) {
