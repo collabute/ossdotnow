@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import 'dotenv/config';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { getGithubContributionTotals } from '../packages/api/src/providers/github';
 
 const ArgSchema = z.object({

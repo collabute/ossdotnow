@@ -4,7 +4,7 @@ export const revalidate = 0;
 
 import { NextRequest } from 'next/server';
 import { db } from '@workspace/db';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { getLeaderboardPage } from '@workspace/api/leaderboard/read';
 import { getUserMetas } from '@workspace/api/leaderboard/use-meta';

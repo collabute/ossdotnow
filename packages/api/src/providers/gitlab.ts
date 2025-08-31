@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 export type DateLike = string | Date;
 export type DateRange = { from: DateLike; to: DateLike };

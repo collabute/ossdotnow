@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { auth } from '@workspace/auth/server';
 import { env } from '@workspace/env/server';
 import { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 const Body = z.object({
   users: z
