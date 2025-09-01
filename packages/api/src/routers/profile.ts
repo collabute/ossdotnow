@@ -7,10 +7,10 @@ import {
   projectVote,
   user,
 } from '@workspace/db/schema';
+import { createTRPCRouter, protectedProcedure, publicProcedure } from '../trpc';
 import { getActiveDriver, type Context } from '../driver/utils';
-import { createTRPCRouter, publicProcedure } from '../trpc';
-import { desc, eq, and } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
+import { desc, eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 
 type ActivityItem = {
@@ -30,57 +30,53 @@ type ActivityItem = {
 };
 
 export const profileRouter = createTRPCRouter({
-  getProfile: publicProcedure
-    .input(
-      z.object({
-        id: z.string(),
-        provider: z.enum(['github', 'gitlab']).optional(),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      const targetId = input.id;
+  getProfile: publicProcedure.input(z.object({
+    id: z.string(),
+    provider: z.enum(['github', 'gitlab']).optional()
+  })).query(async ({ ctx, input }) => {
+    const targetId = input.id;
 
-      const profileUser = await ctx.db.query.user.findFirst({
-        where: eq(user.id, input.id),
+    const profileUser = await ctx.db.query.user.findFirst({
+      where: eq(user.id, input.id),
+    });
+
+    if (!profileUser) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'User not found',
       });
+    }
 
-      if (!profileUser) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'User not found',
+    // If provider is specified, look for that specific account
+    // Otherwise, get the first available account (backward compatibility)
+    const userAccount = input.provider
+      ? await ctx.db.query.account.findFirst({
+          where: and(eq(account.userId, targetId), eq(account.providerId, input.provider)),
+        })
+      : await ctx.db.query.account.findFirst({
+          where: eq(account.userId, targetId),
         });
-      }
 
-      // If provider is specified, look for that specific account
-      // Otherwise, get the first available account (backward compatibility)
-      const userAccount = input.provider
-        ? await ctx.db.query.account.findFirst({
-            where: and(eq(account.userId, targetId), eq(account.providerId, input.provider)),
-          })
-        : await ctx.db.query.account.findFirst({
-            where: eq(account.userId, targetId),
-          });
+    if (!userAccount || !userAccount.providerId) {
+      const providerMessage = input.provider ? ` for ${input.provider}` : '';
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: `User account or provider not found${providerMessage}`,
+      });
+    }
 
-      if (!userAccount || !userAccount.providerId) {
-        const providerMessage = input.provider ? ` for ${input.provider}` : '';
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: `User account or provider not found${providerMessage}`,
-        });
-      }
+    const driver = await getActiveDriver(
+      userAccount.providerId as 'github' | 'gitlab',
+      ctx as Context,
+    );
+    const userDetails = await driver.getUserDetails(profileUser.username);
 
-      const driver = await getActiveDriver(
-        userAccount.providerId as 'github' | 'gitlab',
-        ctx as Context,
-      );
-      const userDetails = await driver.getUserDetails(profileUser.username);
-
-      return {
-        ...profileUser,
-        git: userDetails,
-        provider: userAccount.providerId,
-      };
-    }),
+    return {
+      ...profileUser,
+      git: userDetails,
+      provider: userAccount.providerId,
+    };
+  }),
   getUserProviders: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -92,7 +88,7 @@ export const profileRouter = createTRPCRouter({
       });
 
       return {
-        providers: accounts.map((acc) => acc.providerId),
+        providers: accounts.map(acc => acc.providerId),
       };
     }),
   gitDetails: publicProcedure

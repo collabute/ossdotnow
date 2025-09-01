@@ -10,7 +10,7 @@ import { useTRPC } from '@/hooks/use-trpc';
 import { useForm } from 'react-hook-form';
 import { useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { motion } from 'motion/react';
 import { Send, Loader2, X } from 'lucide-react';
 

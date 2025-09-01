@@ -51,24 +51,17 @@ function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps)
       onMarkAsRead(notification.id);
     }
 
-    if (notification.data?.launchId) {
-      router.push(`/launches/${notification.data.launchId}`);
-      return;
-    }
+      // Navigate based on notification type
     if (notification.data?.projectId) {
       if (notification.type === 'comment_received') {
-        router.push(`/projects/${notification.data.projectId}#comments`);
+        router.push(`/launches/${notification.data.projectId}#comments`);
       } else {
-        router.push(`/projects/${notification.data.projectId}`);
+        router.push(`/launches/${notification.data.projectId}`);
       }
     }
   };
 
-  const created =
-    typeof notification.createdAt === 'string'
-      ? new Date(notification.createdAt)
-      : notification.createdAt;
-  const timeAgo = formatDistanceToNow(created, { addSuffix: false });
+  const timeAgo = formatDistanceToNow(notification.createdAt, { addSuffix: false });
   const displayTime = timeAgo.includes('less than') ? 'now' : timeAgo;
 
   return (
