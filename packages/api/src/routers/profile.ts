@@ -30,9 +30,9 @@ type ActivityItem = {
 };
 
 export const profileRouter = createTRPCRouter({
-  getProfile: publicProcedure.input(z.object({ 
+  getProfile: publicProcedure.input(z.object({
     id: z.string(),
-    provider: z.enum(['github', 'gitlab']).optional() 
+    provider: z.enum(['github', 'gitlab']).optional()
   })).query(async ({ ctx, input }) => {
     const targetId = input.id;
 
@@ -49,7 +49,7 @@ export const profileRouter = createTRPCRouter({
 
     // If provider is specified, look for that specific account
     // Otherwise, get the first available account (backward compatibility)
-    const userAccount = input.provider 
+    const userAccount = input.provider
       ? await ctx.db.query.account.findFirst({
           where: and(eq(account.userId, targetId), eq(account.providerId, input.provider)),
         })

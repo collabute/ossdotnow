@@ -5,7 +5,14 @@
   "exports": {
     ".": "./src/root.ts",
     "./trpc": "./src/trpc.ts",
-    "./providers/types": "./src/providers/types.ts"
+    "./providers/types": "./src/providers/types.ts",
+    "./leaderboard/aggregator": "./src/leaderboard/aggregator.ts",
+    "./leaderboard/redis": "./src/leaderboard/redis.ts",
+    "./redis/client": "./src/redis/client.ts",
+    "./redis/locks": "./src/redis/lock.ts",
+    "./leaderboard/read": "./src/leaderboard/read.ts",
+    "./leaderboard/use-meta": "./src/leaderboard/use-meta.ts",
+    "./leaderboard/meta": "./src/leaderboard/meta.ts"
   },
   "scripts": {
     "lint": "eslint ."

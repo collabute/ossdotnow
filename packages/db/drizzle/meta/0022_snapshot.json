@@ -1,6 +1,6 @@
 {
-  "id": "c6c7a56c-98a0-445f-9b9d-9c2df0abd786",
-  "prevId": "50db695f-866a-4189-9750-30f76c604da1",
+  "id": "1fa4fa3c-2bec-4794-ab67-2022c8fd6167",
+  "prevId": "814e9fd6-ff3a-4057-9b76-33a82118ba0f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2202,6 +2202,126 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.contrib_rollups": {
+      "name": "contrib_rollups",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period": {
+          "name": "period",
+          "type": "contrib_period",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commits": {
+          "name": "commits",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "prs": {
+          "name": "prs",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "issues": {
+          "name": "issues",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "contrib_rollups_user_period_uidx": {
+          "name": "contrib_rollups_user_period_uidx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contrib_rollups_period_idx": {
+          "name": "contrib_rollups_period_idx",
+          "columns": [
+            {
+              "expression": "period",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contrib_rollups_user_idx": {
+          "name": "contrib_rollups_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -2272,6 +2392,23 @@
         "launch_scheduled",
         "launch_live",
         "comment_received"
+      ]
+    },
+    "public.contrib_period": {
+      "name": "contrib_period",
+      "schema": "public",
+      "values": [
+        "all_time",
+        "last_30d",
+        "last_365d"
+      ]
+    },
+    "public.contrib_provider": {
+      "name": "contrib_provider",
+      "schema": "public",
+      "values": [
+        "github",
+        "gitlab"
       ]
     }
   },

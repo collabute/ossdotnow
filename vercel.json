@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/activate-launches",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/leaderboard/cron/daily",
+      "schedule": "* * * * *"
     }
   ]
 }
