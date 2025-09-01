@@ -51,7 +51,7 @@ function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps)
       onMarkAsRead(notification.id);
     }
 
-      // Navigate based on notification type
+    // Navigate based on notification type
     if (notification.data?.projectId) {
       if (notification.type === 'comment_received') {
         router.push(`/launches/${notification.data.projectId}#comments`);
