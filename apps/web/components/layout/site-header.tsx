@@ -21,7 +21,7 @@ export async function SiteHeader() {
           <Icons.logo className="size-6 sm:size-8" />
           <span className="text-lg font-medium sm:text-2xl">oss.now</span>
         </Link>
-        <nav className="flex items-center gap-1 sm:gap-2">
+        {/* <nav className="flex items-center gap-1 sm:gap-2">
           {env.NODE_ENV === 'production' ? <TempNav /> : <PublicNav />}
           {session?.user.id ? (
             <UserNav />
@@ -32,7 +32,7 @@ export async function SiteHeader() {
               </Link>
             </Button>
           ) : null}
-        </nav>
+        </nav> */}
       </div>
     </header>
   );

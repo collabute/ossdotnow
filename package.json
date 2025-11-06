@@ -36,6 +36,7 @@
   ],
   "trustedDependencies": [
     "@tailwindcss/oxide",
+    "@tailwindcss/postcss",
     "core-js-pure"
   ]
 }

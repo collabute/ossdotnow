@@ -3,7 +3,7 @@ name: ossdotnow
 services:
   db:
     container_name: ossdotnow
-    image: bitnami/postgresql:15
+    image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

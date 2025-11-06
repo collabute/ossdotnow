@@ -2,7 +2,6 @@
 
 import { track as vercelTrack } from '@vercel/analytics/react';
 import { default as NextLink, LinkProps } from 'next/link';
-import { track as databuddyTrack } from '@databuddy/sdk';
 import { ComponentPropsWithoutRef } from 'react';
 import { cn } from '@workspace/ui/lib/utils';
 
@@ -31,7 +30,6 @@ export default function Link({
       onClick={(e) => {
         if (event) {
           vercelTrack(event, eventObject);
-          databuddyTrack(event, eventObject);
         }
         if (onClick) {
           onClick(e);
