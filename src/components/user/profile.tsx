@@ -38,11 +38,11 @@ import type { RouterOutputs } from '@/lib/api-types';
 import { useTRPC } from '@/hooks/use-trpc';
 
 type AccountType = (typeof accountTypes)[number];
-type ManageableProviderId = 'github' | 'google' | 'email-password';
+type ManageableProviderId = 'github' | 'email-password';
 type AccountSecurity = RouterOutputs['user']['getAccountSecurity'];
 type ConnectedAccount = AccountSecurity['accounts'][number];
 
-const providerOrder: ManageableProviderId[] = ['github', 'google', 'email-password'];
+const providerOrder: ManageableProviderId[] = ['github', 'email-password'];
 
 const providerCopy: Record<
   ManageableProviderId,
@@ -57,11 +57,6 @@ const providerCopy: Record<
     description: 'Required for repository ownership checks, project claims, and better autofill.',
     disconnectWarning:
       'Repository ownership checks and unclaimed project claims will stop working until GitHub is connected again.',
-  },
-  google: {
-    label: 'Google',
-    description: 'Use Google as an additional sign-in method for this account.',
-    disconnectWarning: 'You will not be able to sign in with Google until you connect it again.',
   },
   'email-password': {
     label: 'Email/password',
@@ -186,11 +181,8 @@ export function Profile() {
     await navigate({ to: '/login' });
   }
 
-  async function connectProvider(providerId: 'github' | 'google') {
-    const isConfigured =
-      providerId === 'github'
-        ? (providerStatus.data?.github.oauthConfigured ?? true)
-        : (providerStatus.data?.google.oauthConfigured ?? true);
+  async function connectProvider(providerId: 'github') {
+    const isConfigured = providerStatus.data?.github.oauthConfigured ?? true;
 
     if (!isConfigured) {
       toast.error(`${providerCopy[providerId].label} OAuth is not configured for this environment.`);
@@ -448,9 +440,7 @@ export function Profile() {
               isOAuthConfigured={
                 providerId === 'github'
                   ? (providerStatus.data?.github.oauthConfigured ?? true)
-                  : providerId === 'google'
-                    ? (providerStatus.data?.google.oauthConfigured ?? true)
-                    : true
+                  : true
               }
               onConnect={
                 providerId === 'email-password'
@@ -773,20 +763,12 @@ function ProviderIcon({ providerId }: { providerId: ManageableProviderId }) {
     return <Icons.github className="mt-0.5 h-5 w-5 shrink-0 fill-current" />;
   }
 
-  if (providerId === 'google') {
-    return <Icons.google className="mt-0.5 h-5 w-5 shrink-0" />;
-  }
-
   return <KeyRound className="mt-0.5 h-5 w-5 shrink-0" />;
 }
 
 function ProviderButtonIcon({ providerId }: { providerId: ManageableProviderId }) {
   if (providerId === 'github') {
     return <Icons.github className="h-4 w-4 fill-current" />;
-  }
-
-  if (providerId === 'google') {
-    return <Icons.google className="h-4 w-4" />;
   }
 
   return <KeyRound className="h-4 w-4" />;

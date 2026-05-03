@@ -6,11 +6,6 @@ export const providers = [
     icon: Icons.github,
     providerId: 'github' as const,
   },
-  {
-    name: 'Google',
-    icon: Icons.google,
-    providerId: 'google' as const,
-  },
 ];
 
 export type ProviderId = (typeof providers)[number]['providerId'];

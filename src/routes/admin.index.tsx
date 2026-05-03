@@ -144,11 +144,6 @@ function AdminDashboard() {
           icon={GitBranch}
         />
         <ProviderCard
-          label="Google OAuth"
-          configured={providerStatus?.google.oauthConfigured ?? false}
-          icon={Users}
-        />
-        <ProviderCard
           label="Resend"
           configured={providerStatus?.resend.configured ?? false}
           icon={Mail}

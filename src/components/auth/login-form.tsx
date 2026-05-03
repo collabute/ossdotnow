@@ -382,9 +382,7 @@ export function LoginForm({
     if (state.mode === 'reset-password') void submitResetPassword();
   };
 
-  const activeSocialProvider = state.submitting === 'github' || state.submitting === 'google'
-    ? state.submitting
-    : null;
+  const activeSocialProvider = state.submitting === 'github' ? state.submitting : null;
 
   return (
     <div
