@@ -27,28 +27,6 @@ const Icons = {
       </svg>
     );
   },
-  google: (props: IconProps) => {
-    return (
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
-        <path
-          fill="#4285F4"
-          d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.54 5.54 0 0 1-2.39 3.64v3h3.87c2.27-2.09 3.54-5.18 3.54-8.88Z"
-        />
-        <path
-          fill="#34A853"
-          d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.87-3a7.24 7.24 0 0 1-10.78-3.8H1.3v3.09A12 12 0 0 0 12 24Z"
-        />
-        <path
-          fill="#FBBC05"
-          d="M5.3 14.29a7.2 7.2 0 0 1 0-4.58V6.62H1.3a12 12 0 0 0 0 10.76l4-3.09Z"
-        />
-        <path
-          fill="#EA4335"
-          d="M12 4.77c1.76 0 3.35.61 4.6 1.8l3.43-3.44A11.48 11.48 0 0 0 12 0 12 12 0 0 0 1.3 6.62l4 3.09A7.16 7.16 0 0 1 12 4.77Z"
-        />
-      </svg>
-    );
-  },
   twitter: (props: IconProps) => {
     return (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" {...props}>
